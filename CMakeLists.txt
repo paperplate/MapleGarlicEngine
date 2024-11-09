@@ -20,13 +20,47 @@ find_package(glfw3 REQUIRED)
 set(GLFW_VULKAN_STATIC ON)
 
 find_package(X11 REQUIRED)
-
 find_package(Threads REQUIRED)
+
+#find_program(GLSLC glslc)
+find_program(GLSLC_EXECUTABLE NAMES glslc HINTS ENV PATH)
+if (NOT GLSLC_EXECUTABLE)
+	message(FATAL_ERROR "glslc not found.")
+else()
+	message(STATUS "using glslc: ${GLSLC_EXECUTABLE}")
+endif()
 
 add_executable(${PROJECT_NAME})
 
+
+set(SHADERS
+  ${PROJECT_SOURCE_DIR}/shaders/shader.vert
+  ${PROJECT_SOURCE_DIR}/shaders/shader.frag
+)
+
+function(compile_shader inputShader outputShader)
+	add_custom_command(
+		DEPENDS ${inputShader}
+		OUTPUT ${outputShader}
+		COMMAND ${GLSLC_EXECUTABLE} ${inputShader} -o ${outputShader}
+		COMMENT "Compiling GLSL shader: ${inputShader}:"
+		VERBATIM
+	)
+endfunction()
+
+foreach(SHADER ${SHADERS})
+	get_filename_component(SHADER_NAME ${SHADER} NAME)
+	set(COMPILED_SHADER "${CMAKE_CURRENT_BINARY_DIR}/shaders/${SHADER_NAME}.spv")
+	compile_shader(${SHADER} ${COMPILED_SHADER})
+	list(APPEND COMPILED_SHADERS ${COMPILED_SHADER})
+endforeach()
+
+add_custom_target(compile_shaders ALL DEPENDS ${COMPILED_SHADERS})
+
+
 target_sources(${PROJECT_NAME} PRIVATE
 	helloTriangle.cpp
+#tmp.cpp
 	)	
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -43,4 +77,4 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   ${X11_Xxf86vm_LIB}
   Threads::Threads
   ${CMAKE_DL_LIBS}
-)  
+)
