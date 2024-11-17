@@ -1,12 +1,19 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.31)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-project(VulkanTest VERSION 0.0.1)
+project(VulkanTest VERSION 0.0.1 LANGUAGES CXX)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+#set(CMAKE_CXX_CLANG_TIDY ON)
+
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fconcepts -fmodules-ts")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++")
+
 set(CMAKE_BUILD_TYPE debug)
+set(CMAKE_PDB_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 find_package(Vulkan REQUIRED)
 
@@ -32,7 +39,6 @@ endif()
 
 add_executable(${PROJECT_NAME})
 
-
 set(SHADERS
   ${PROJECT_SOURCE_DIR}/shaders/shader.vert
   ${PROJECT_SOURCE_DIR}/shaders/shader.frag
@@ -57,6 +63,18 @@ endforeach()
 
 add_custom_target(compile_shaders ALL DEPENDS ${COMPILED_SHADERS})
 
+function(copy_files target directory)
+	add_custom_command(
+		TARGET ${target} POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_directory
+		"${CMAKE_CURRENT_SOURCE_DIR}/${directory}"
+		"${CMAKE_CURRENT_BINARY_DIR}/${directory}"
+	)
+endfunction(copy_files)
+
+add_custom_target(copy_textures ALL DEPENDS ${TEXTURES})
+
+copy_files(copy_textures "textures")
 
 target_sources(${PROJECT_NAME} PRIVATE
 	helloTriangle.cpp
@@ -67,6 +85,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${GLFW_INCLUDE_DIRS}
   ${Vulkan_INCLUDE_DIR}
   ${X11_INCLUDE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
