@@ -1,16 +1,25 @@
 cmake_minimum_required(VERSION 3.31)
+
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD ON)
+
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 project(VulkanTest VERSION 0.0.1 LANGUAGES CXX)
+
+#set(CMAKE_CXX_MODULE_STD 1)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(CMAKE_CXX_SCAN_FOR_MODULES ON)
+
 #set(CMAKE_CXX_CLANG_TIDY ON)
 
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fconcepts -fmodules-ts")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++")
+add_compile_options(-fmodules-ts)
 
 set(CMAKE_BUILD_TYPE debug)
 set(CMAKE_PDB_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -37,7 +46,6 @@ else()
 	message(STATUS "using glslc: ${GLSLC_EXECUTABLE}")
 endif()
 
-add_executable(${PROJECT_NAME})
 
 set(SHADERS
   ${PROJECT_SOURCE_DIR}/shaders/shader.vert
@@ -76,19 +84,28 @@ add_custom_target(copy_textures ALL DEPENDS ${TEXTURES})
 
 copy_files(copy_textures "textures")
 
-target_sources(${PROJECT_NAME} PRIVATE
-	helloTriangle.cpp
-#tmp.cpp
-	)	
+add_library(MapleGarlicEngine OBJECT 
+)
 
-target_include_directories(${PROJECT_NAME} PUBLIC
+target_sources(MapleGarlicEngine PUBLIC
+	FILE_SET engine
+	TYPE CXX_MODULES
+	FILES helloTriangle.cxx
+)
+
+target_compile_features(MapleGarlicEngine
+	PRIVATE cxx_std_23
+	INTERFACE cxx_std_20
+)
+
+target_include_directories(MapleGarlicEngine PRIVATE
   ${GLFW_INCLUDE_DIRS}
   ${Vulkan_INCLUDE_DIR}
   ${X11_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE
+target_link_libraries(MapleGarlicEngine PRIVATE
 	#${GLFW_LIB}
 	glfw
 	${Vulkan_LIBRARY}
@@ -96,4 +113,26 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   ${X11_Xxf86vm_LIB}
   Threads::Threads
   ${CMAKE_DL_LIBS}
+)
+
+
+add_executable(${PROJECT_NAME})
+target_compile_features(${PROJECT_NAME}
+	PRIVATE cxx_std_23
+	INTERFACE cxx_std_20
+)
+
+target_sources(${PROJECT_NAME} PRIVATE
+	main.cxx
+	)
+
+#target_include_directories(${PROJECT_NAME} PUBLIC
+#  ${GLFW_INCLUDE_DIRS}
+ # ${Vulkan_INCLUDE_DIR}
+  #${X11_INCLUDE_DIR}
+  #${CMAKE_CURRENT_SOURCE_DIR}/thirdparty
+#)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE
+  MapleGarlicEngine
 )

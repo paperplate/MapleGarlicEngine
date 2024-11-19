@@ -1,4 +1,5 @@
-//import std;
+module;
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -25,6 +26,11 @@
 #include <set>
 #include <stdexcept>
 #include <vector>
+
+//import std;
+
+
+export module MapleGarlicEngine;
 
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -136,7 +142,7 @@ const std::vector<uint16_t> indices = {
     0, 1, 2, 2, 3, 0
 };
 
-class HelloTriangleApplication {
+export class HelloTriangleApplication {
 public:
     void run() {
         initWindow();
@@ -1524,15 +1530,3 @@ private:
     }
 };
 
-int main() {
-    HelloTriangleApplication app;
-
-    try {
-        app.run();
-    } catch (const std::exception &e) {
-        std::cerr << "[" << __func__ << "]" << e.what() << std::endl;
-        return EXIT_FAILURE;
-    }
-
-    return EXIT_SUCCESS;
-}
