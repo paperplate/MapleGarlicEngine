@@ -18,11 +18,14 @@ set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 #set(CMAKE_CXX_CLANG_TIDY ON)
 
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fconcepts -fmodules-ts")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++")# --enable-libstdcxx-backtrace")# -llibstdc++_libbacktrace")
 add_compile_options(-fmodules-ts)
+#add_compile_options(--enable-libstdcxx-backtrace=yes)
+#add_compile_options(-lstdc++_libbacktrace)
 
-set(CMAKE_BUILD_TYPE debug)
-set(CMAKE_PDB_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+#set(CMAKE_BUILD_TYPE debug)
+set(CMAKE_BUILD_TYPE release)
+#set(CMAKE_PDB_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 find_package(Vulkan REQUIRED)
 
@@ -81,8 +84,10 @@ function(copy_files target directory)
 endfunction(copy_files)
 
 add_custom_target(copy_textures ALL DEPENDS ${TEXTURES})
+add_custom_target(copy_models ALL DEPENDS ${MODELS})
 
 copy_files(copy_textures "textures")
+copy_files(copy_models "models")
 
 add_library(MapleGarlicEngine OBJECT 
 )
@@ -124,15 +129,22 @@ target_compile_features(${PROJECT_NAME}
 
 target_sources(${PROJECT_NAME} PRIVATE
 	main.cxx
+	#tut.cpp
 	)
 
-#target_include_directories(${PROJECT_NAME} PUBLIC
-#  ${GLFW_INCLUDE_DIRS}
- # ${Vulkan_INCLUDE_DIR}
-  #${X11_INCLUDE_DIR}
-  #${CMAKE_CURRENT_SOURCE_DIR}/thirdparty
-#)
+target_include_directories(${PROJECT_NAME} PUBLIC
+  ${GLFW_INCLUDE_DIRS}
+  ${Vulkan_INCLUDE_DIR}
+  ${X11_INCLUDE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty
+)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
   MapleGarlicEngine
+#	glfw
+#	${Vulkan_LIBRARY}
+#  ${X11_LIBRARIES}
+#  ${X11_Xxf86vm_LIB}
+#  Threads::Threads
+#  ${CMAKE_DL_LIBS}
 )
