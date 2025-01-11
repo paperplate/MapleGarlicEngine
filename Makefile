@@ -4,7 +4,7 @@ clean:
 	rm -rf build
 
 build:
-	cmake -B./build -S. ;\
+	cmake -B./build -S. -G Ninja ;\
 		cd build; \
 		ninja ; \
 		mv compile_commands.json ..
