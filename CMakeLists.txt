@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.31)
+cmake_minimum_required(VERSION 3.30)
 
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD ON)
 
@@ -29,6 +29,7 @@ add_compile_options(-fmodules-ts)
 set(CMAKE_BUILD_TYPE release)
 #set(CMAKE_PDB_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
+find_package(Threads REQUIRED)
 find_package(Vulkan REQUIRED)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -41,7 +42,6 @@ find_package(glfw3 REQUIRED)
 set(GLFW_VULKAN_STATIC ON)
 
 find_package(X11 REQUIRED)
-find_package(Threads REQUIRED)
 
 #find_program(GLSLC glslc)
 find_program(GLSLC_EXECUTABLE NAMES glslc HINTS ENV PATH)
