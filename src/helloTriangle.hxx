@@ -199,6 +199,12 @@ private:
 
     bool framebufferResized = false;
 
+    VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkImage colorImage;
+    VkDeviceMemory colorImageMemory;
+    VkImageView colorImageView;
+
     void initWindow();
 
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -248,6 +254,7 @@ private:
     void createTextureSampler();
     VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
     void createImage(uint32_t width, uint32_t height, uint32_t mipLevels,
+                     VkSampleCountFlagBits numSamples,
                      VkFormat format, VkImageTiling tiling,
                      VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
                      VkImage& image, VkDeviceMemory& imageMemory);
@@ -311,5 +318,8 @@ private:
 
         return VK_FALSE;
     }
+
+    VkSampleCountFlagBits getMaxUsableSampleCount();
+    void createColorResources();
 };
 
