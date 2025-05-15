@@ -1,9 +1,19 @@
 const std = @import("std");
+const zcc = @import("compile_commands");
 
 const CPP_ROOT_DIR = "./src/";
-const CPP_FLAGS = &.{ "-Wall", "-std=c++23", "-fmodules", "-fbuiltin-module-map" };
+const CPP_FLAGS = &.{"-Wall", "-std=c++23", "-fmodule-file=MapleGarlicEngine=MapleGarlicEngine.pcm" };
 
 const HOMEBREW_DIR = "~/../linuxbrew/.linuxbrew";
+
+
+fn appendFlags(base: []const []const u8, extra: []const u8, allocator: std.mem.Allocator) ![]const []const u8 {
+    var list = std.ArrayList([]const u8).init(allocator);
+    try list.appendSlice(base);
+    try list.append(extra);
+    const owned = try list.toOwnedSlice();
+    return @as([]const []const u8, owned);
+}
 
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
@@ -21,19 +31,29 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    var targets = std.ArrayList(*std.Build.Step.Compile).init(b.allocator);
+
     const linkage = b.option(std.builtin.LinkMode, "linkage", "Link mode for MapleGarlicEngine") orelse .static;
 
     const modMapleGarlicEngine = b.createModule(.{
         .target = target,
         .optimize = optimize,
     });
+
+    //const engineFlags = try appendFlags(CPP_FLAGS, "-MJ=MapleGarlicEngine.o.json", allocator);
+    //defer allocator.free(engineFlags);
+
     modMapleGarlicEngine.addCSourceFiles(.{
         .root = b.path(CPP_ROOT_DIR),
-        .files = &.{"helloTriangle.cxx"},
+        .files = &.{"helloTriangle.cxx", "helloTriangle.hxx"},
         .flags = &.{
             "-Wall",
             "-std=c++23",
-        }, //"--precompile", "-fprebuilt-module-path=.", "-o MapleGarlicEngine.pcm" },
+            "-fmodule-file=MapleGarlicEngine=MapleGarlicEngine.pcm",
+            },//engineFlags,//&.{
+    //        "-Wall",
+  //          "-std=c++23",
+//        }, //"--precompile", "-fprebuilt-module-path=.", "-o MapleGarlicEngine.pcm" },
     });
 
     const libMapleGarlicEngine = b.addLibrary(.{
@@ -42,6 +62,8 @@ pub fn build(b: *std.Build) void {
         .version = version,
         .root_module = modMapleGarlicEngine,
     });
+
+    targets.append(libMapleGarlicEngine) catch @panic("OOM");
 
     // include libraries installed via homebrew
     libMapleGarlicEngine.addIncludePath(b.path("../../../home/linuxbrew/.linuxbrew/include"));
@@ -68,13 +90,17 @@ pub fn build(b: *std.Build) void {
     exeMod.addImport("MapleGarlicEngine", modMapleGarlicEngine);
     //exeMod.linkLibrary(libMapleGarlicEngine);
     exeMod.addIncludePath(b.path("./src"));
+    
+    //const exeFlags = try appendFlags(CPP_FLAGS, "-MJ 'exe.o.json'", allocator);
+    //defer allocator.free(exeFlags);
+
     exeMod.addCSourceFiles(.{
         .root = b.path(CPP_ROOT_DIR),
         .files = &.{"main.cxx"},
-        .flags = &.{
-            "-Wall",
-            "-std=c++23",
-        }, // "-fmodule-file=MapleGarlicEngine=MapleGarlicEngine.pcm" },
+        .flags = &.{"-Wall", "-std=c++23",},//exeFlags,
+            //"-Wall",
+          //  "-std=c++23",
+        //}, // "-fmodule-file=MapleGarlicEngine=MapleGarlicEngine.pcm" },
     });
 
     exeMod.addIncludePath(b.path("../../../home/linuxbrew/.linuxbrew/include"));
@@ -89,8 +115,10 @@ pub fn build(b: *std.Build) void {
     });
     exe.linkLibCpp();
 
-
+    targets.append(exe) catch @panic("OOM");
     //compile_all_shaders(b, exe);
+    //
+    zcc.createStep(b, "cdb", targets.toOwnedSlice() catch @panic("OOM"));
 
     //exe.linkLibrary(libMapleGarlicEngine);
     // This declares intent for the executable to be installed into the
