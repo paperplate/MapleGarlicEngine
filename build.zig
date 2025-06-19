@@ -45,7 +45,16 @@ pub fn build(b: *std.Build) void {
 
     modMapleGarlicEngine.addCSourceFiles(.{
         .root = b.path(CPP_ROOT_DIR),
-        .files = &.{"helloTriangle.cxx", "helloTriangle.hxx"},
+        .files = &.{
+            "MapleGarlicEngineWindow.cxx",
+            //"MapleGarlicEngineWindow.hxx",
+            "app.cxx",
+            "Device.cxx",
+            "Pipeline.cxx",
+            //"app.hxx",
+            //"helloTriangle.cxx",
+            //"helloTriangle.hxx"
+        },
         .flags = &.{
             "-Wall",
             "-std=c++23",

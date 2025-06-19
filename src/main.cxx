@@ -1,34 +1,19 @@
-#include <exception>
+#include "app.hxx"
+
+
 #include <cstdlib>
+#include <exception>
 #include <iostream>
-//#include <stacktrace>
-#include "helloTriangle.hxx"
-//import MapleGarlicEngine;
-
-/*extern "C" int myMain() {
-    HelloTriangleApplication app;
-
-    try {
-        app.run();
-    } catch (const std::exception &e) {
-        std::cerr << "[" << __func__ << "]" << e.what() << std::endl;
-  //      std::cerr << std::stacktrace::current() << std::endl;
-        return EXIT_FAILURE;
-    }
-
-    return EXIT_SUCCESS;
-}*/
 
 int main() {
-    HelloTriangleApplication app;
+  MapleGarlicEngine::FirstApp app{};
+  try {
+    app.run();
+  } catch (const std::exception &e) {
+    std::cerr << "[" << __func__ << "]" << e.what() << std::endl;
+    //std::cerr << std::stacktrace::current() << std::endl;
+    return EXIT_FAILURE;
+  }
 
-    try {
-        app.run();
-    } catch (const std::exception &e) {
-        std::cerr << "[" << __func__ << "]" << e.what() << std::endl;
-  //      std::cerr << std::stacktrace::current() << std::endl;
-        return EXIT_FAILURE;
-    }
-
-    return EXIT_SUCCESS;
+  return EXIT_SUCCESS;
 }

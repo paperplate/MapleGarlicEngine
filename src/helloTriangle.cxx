@@ -156,10 +156,10 @@ void HelloTriangleApplication::initVulkan() {
     createColorResources();
     createDepthResources();
     createFramebuffers();
-    createTextureImage();
-    createTextureImageView();
-    createTextureSampler();
-    loadModel();
+    //createTextureImage();
+    //createTextureImageView();
+    //createTextureSampler();
+    //loadModel();
     createVertexBuffer();
     createIndexBuffer();
     createUniformBuffers();
