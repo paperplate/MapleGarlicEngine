@@ -1,0 +1,58 @@
+---
+# clang-tidy configuration file
+# - 3 spaces for indentation
+# - Allman style braces
+# - Custom include order: corresponding header, vulkan headers, other headers, standard library
+
+Checks: >
+  -*,
+  readability-*,
+  modernize-*,
+  performance-*,
+  bugprone-*,
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+  -modernize-use-trailing-return-type,
+  -readability-braces-around-statements
+
+CheckOptions:
+  # Indentation: 3 spaces
+  - key:             readability-identifier-naming.IndentWidth
+    value:           '3'
+  
+  # Brace wrapping style: Allman
+  # Note: clang-tidy doesn't directly control brace style (that's clang-format's job)
+  # but we can enable checks that enforce consistency
+  - key:             readability-braces-around-statements.ShortStatementLines
+    value:           '0'
+  
+  # Include order configuration
+  # Priority groups (lower number = earlier in file):
+  # 1. Corresponding header (main/related header)
+  # 2. Vulkan headers
+  # 3. Other project/library headers
+  # 4. Standard library headers
+  - key:             llvm-include-order.IncludeStyle
+    value:           'llvm'
+  
+  - key:             readability-identifier-naming.NamespaceCase
+    value:           'lower_case'
+  
+  - key:             readability-identifier-naming.ClassCase
+    value:           'CamelCase'
+  
+  - key:             readability-identifier-naming.StructCase
+    value:           'CamelCase'
+  
+  - key:             readability-identifier-naming.FunctionCase
+    value:           'camelBack'
+  
+  - key:             readability-identifier-naming.VariableCase
+    value:           'camelBack'
+  
+  - key:             readability-identifier-naming.ConstantCase
+    value:           'UPPER_CASE'
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*'
+FormatStyle:     file

@@ -1,0 +1,98 @@
+---
+# clang-format configuration file
+# - 3 spaces for indentation (tabs = spaces)
+# - Allman style braces
+# - Custom include order: corresponding header, vulkan headers, other headers, standard library
+
+BasedOnStyle: LLVM
+
+# Indentation: 3 spaces
+IndentWidth: 3
+TabWidth: 3
+UseTab: Never
+ContinuationIndentWidth: 3
+ConstructorInitializerIndentWidth: 3
+
+# Brace wrapping: Allman style
+BreakBeforeBraces: Allman
+BraceWrapping:
+  AfterCaseLabel: true
+  AfterClass: true
+  AfterControlStatement: Always
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  AfterUnion: true
+  AfterExternBlock: true
+  BeforeCatch: true
+  BeforeElse: true
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+
+# Include ordering
+# Group 1: Main/corresponding header
+# Group 2: Vulkan headers
+# Group 3: Other headers  
+# Group 4: Standard library headers
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Priority 1: Corresponding header (matches current source file)
+  - Regex:           '^".*\.h"'
+    Priority:        1
+    SortPriority:    1
+    CaseSensitive:   false
+  
+  # Priority 2: Vulkan headers
+  - Regex:           '^<vulkan/.*>'
+    Priority:        2
+    SortPriority:    2
+    CaseSensitive:   false
+  
+  - Regex:           '^<vk_.*>'
+    Priority:        2
+    SortPriority:    2
+    CaseSensitive:   false
+  
+  - Regex:           '^"vulkan/.*"'
+    Priority:        2
+    SortPriority:    2
+    CaseSensitive:   false
+  
+  # Priority 3: Other project/library headers (non-standard, non-vulkan)
+  - Regex:           '^[<"].*[>"]'
+    Priority:        3
+    SortPriority:    3
+    CaseSensitive:   false
+  
+  # Priority 4: C++ standard library headers
+  - Regex:           '^<(algorithm|array|atomic|bitset|cassert|ccomplex|cctype|cerrno|cfenv|cfloat|chrono|cinttypes|ciso646|climits|clocale|cmath|codecvt|complex|condition_variable|csetjmp|csignal|cstdarg|cstddef|cstdint|cstdio|cstdlib|cstring|ctgmath|ctime|cuchar|cwchar|cwctype|deque|exception|filesystem|forward_list|fstream|functional|future|initializer_list|iomanip|ios|iosfwd|iostream|istream|iterator|limits|list|locale|map|memory|mutex|new|numeric|optional|ostream|queue|random|ratio|regex|scoped_allocator|set|shared_mutex|sstream|stack|stdexcept|streambuf|string|string_view|strstream|system_error|thread|tuple|type_traits|typeindex|typeinfo|unordered_map|unordered_set|utility|valarray|variant|vector)>'
+    Priority:        4
+    SortPriority:    4
+    CaseSensitive:   false
+
+SortIncludes: CaseSensitive
+
+# Other formatting preferences
+ColumnLimit: 100
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignEscapedNewlines: Right
+AlignOperands: true
+AlignTrailingComments: true
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+PointerAlignment: Left
+SpaceAfterCStyleCast: false
+SpaceBeforeParens: ControlStatements
+SpacesInAngles: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
