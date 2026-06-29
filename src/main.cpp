@@ -1,4 +1,3 @@
-
 #include <SDL3/SDL.h>
 
 #include <glm/glm.hpp>
@@ -24,8 +23,12 @@ static void log(LogType type, std::string_view message) {
 }
 
 struct Vertex {
-  glm::vec2 position;
-  glm::vec3 color;
+  glm::vec3 position;
+  glm::vec4 color;
+};
+
+struct UniformBuffer {
+  float time;
 };
 
 SDL_GPUShader *LoadShader(SDL_GPUDevice *device,
@@ -115,6 +118,7 @@ int main() {
   if (!SDL_ClaimWindowForGPUDevice(device, win)) {
     std::cerr << "SDL_ClaimWindowForGPUDevice Error: " << SDL_GetError()
               << std::endl;
+    SDL_DestroyGPUDevice(device);
     SDL_DestroyWindow(win);
     SDL_Quit();
     return 1;
@@ -124,36 +128,43 @@ int main() {
       LoadShader(device, "shader.vert.spv", 0, 0, 0, 0)};
   if (!vertexShader) {
     log(LogType::ERROR, "Couldnt load vertex shader!");
+    SDL_DestroyGPUDevice(device);
     SDL_DestroyWindow(win);
     SDL_Quit();
     return 1;
   }
 
   SDL_GPUShader *fragmentShader{
-      LoadShader(device, "shader.frag.spv", 0, 0, 0, 0)};
+      LoadShader(device, "shader.frag.spv", 0, 1, 0, 0)};
   if (!fragmentShader) {
     log(LogType::ERROR, "Couldnt load fragment shader!");
+    SDL_DestroyGPUDevice(device);
     SDL_DestroyWindow(win);
     SDL_Quit();
     return 1;
   }
 
-  SDL_GPUColorTargetDescription colorTargetDescription{
-      .format = SDL_GetGPUSwapchainTextureFormat(device, win)};
-  std::vector colorTargetDescriptions{colorTargetDescription};
+  std::vector<SDL_GPUColorTargetDescription> colorTargetDescriptions{
+      {.format = SDL_GetGPUSwapchainTextureFormat(device, win)}};
 
   SDL_GPUGraphicsPipelineTargetInfo targetInfo{
       .color_target_descriptions = colorTargetDescriptions.data(),
       .num_color_targets =
           static_cast<uint32_t>(colorTargetDescriptions.size())};
 
-  std::vector<SDL_GPUVertexAttribute> vertexAttributes{};
-  vertexAttributes.emplace_back(0, 0, SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3, 0);
-  vertexAttributes.emplace_back(1, 0, SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
-                                sizeof(float) * 3);
+  std::vector<SDL_GPUVertexAttribute> vertexAttributes{
+      {.location = 0, // layout (location = 0) in shader
+       .buffer_slot = 0,
+       .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+       .offset = 0},
+      {.location = 1, // layout (location = 1) in shader
+       .buffer_slot = 0,
+       .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
+       .offset = sizeof(float) * 3} // 4th float form current buffer
+  };
 
   std::vector<SDL_GPUVertexBufferDescription> vertexBufferDescriptions{};
-  vertexBufferDescriptions.emplace_back(0, sizeof(glm::vec3),
+  vertexBufferDescriptions.emplace_back(0, sizeof(Vertex),
                                         SDL_GPU_VERTEXINPUTRATE_VERTEX, 0);
 
   SDL_GPUVertexInputState vertexInputState{
@@ -178,15 +189,22 @@ int main() {
       SDL_CreateGPUGraphicsPipeline(device, &pipelineCreateInfo)};
   if (!pipeline) {
     log(LogType::ERROR, "Failed to create GPU graphics pipeline");
+    SDL_ReleaseGPUShader(device, vertexShader);
+    SDL_ReleaseGPUShader(device, fragmentShader);
+    SDL_DestroyGPUDevice(device);
+    SDL_DestroyWindow(win);
+    SDL_Quit();
     return 1;
   }
 
   SDL_ReleaseGPUShader(device, vertexShader);
   SDL_ReleaseGPUShader(device, fragmentShader);
 
-  std::vector<Vertex> vertices{{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-                               {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-                               {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
+  std::vector<Vertex> vertices{{{0.0f, 0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+                               {{-0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
+                               {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f, 1.0f}}};
+
+  UniformBuffer timeUniform{};
 
   SDL_GPUBufferCreateInfo bufferCreateInfo{
       .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
@@ -195,6 +213,11 @@ int main() {
   auto *vertexBuffer{SDL_CreateGPUBuffer(device, &bufferCreateInfo)};
   if (!vertexBuffer) {
     log(LogType::ERROR, "Failed to create vertex buffer");
+    SDL_ReleaseGPUGraphicsPipeline(device, pipeline);
+    SDL_ReleaseGPUBuffer(device, vertexBuffer);
+    SDL_DestroyGPUDevice(device);
+    SDL_DestroyWindow(win);
+    SDL_Quit();
     return 1;
   }
 
@@ -206,6 +229,11 @@ int main() {
       SDL_CreateGPUTransferBuffer(device, &transferBufferCreateInfo)};
   if (!transferBuffer) {
     log(LogType::ERROR, "Failed to create transfer buffer");
+    SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
+    SDL_ReleaseGPUBuffer(device, vertexBuffer);
+    SDL_DestroyGPUDevice(device);
+    SDL_DestroyWindow(win);
+    SDL_Quit();
     return 1;
   }
 
@@ -213,6 +241,11 @@ int main() {
       SDL_MapGPUTransferBuffer(device, transferBuffer, false))};
   if (!transferBufferDataPtr) {
     log(LogType::ERROR, "Failed to map transfer buffer");
+    SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
+    SDL_ReleaseGPUBuffer(device, vertexBuffer);
+    SDL_DestroyGPUDevice(device);
+    SDL_DestroyWindow(win);
+    SDL_Quit();
     return 1;
   }
 
@@ -226,6 +259,11 @@ int main() {
       SDL_AcquireGPUCommandBuffer(device)};
   if (!transferCommandBuffer) {
     log(LogType::ERROR, "Failed to acquire command buffer");
+    SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
+    SDL_ReleaseGPUBuffer(device, vertexBuffer);
+    SDL_DestroyGPUDevice(device);
+    SDL_DestroyWindow(win);
+    SDL_Quit();
     return 1;
   }
 
@@ -234,11 +272,16 @@ int main() {
                                        .offset = 0};
   SDL_GPUBufferRegion dest{
       .buffer = vertexBuffer, .offset = 0, .size = bufferCreateInfo.size};
-  SDL_UploadToGPUBuffer(copyPass, &source, &dest, false);
+  SDL_UploadToGPUBuffer(copyPass, &source, &dest, true);
   SDL_EndGPUCopyPass(copyPass);
 
   if (!SDL_SubmitGPUCommandBuffer(transferCommandBuffer)) {
     log(LogType::ERROR, "Failed to submit command buffer");
+    SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
+    SDL_ReleaseGPUBuffer(device, vertexBuffer);
+    SDL_DestroyGPUDevice(device);
+    SDL_DestroyWindow(win);
+    SDL_Quit();
     return 1;
   }
 
@@ -258,15 +301,23 @@ int main() {
 
     SDL_GPUCommandBuffer *commandBuffer{SDL_AcquireGPUCommandBuffer(device)};
     if (!commandBuffer) {
+      SDL_DestroyGPUDevice(device);
       SDL_DestroyWindow(win);
       SDL_Quit();
       return 1;
     }
 
     SDL_GPUTexture *swapchainTexture{};
+    uint32_t width;
+    uint32_t height;
     SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer, win, &swapchainTexture,
-                                          nullptr, nullptr);
+                                          &width, &height);
     if (swapchainTexture) {
+      timeUniform.time =
+          SDL_GetTicksNS() / 1e9f; // time since program start in seconds
+      SDL_PushGPUFragmentUniformData(commandBuffer, 0, &timeUniform,
+                                     sizeof(UniformBuffer));
+
       SDL_GPUColorTargetInfo colorTarget{};
       colorTarget.texture = swapchainTexture;
       colorTarget.store_op = SDL_GPU_STOREOP_STORE;
@@ -279,7 +330,8 @@ int main() {
           commandBuffer, colorTargets.data(), colorTargets.size(), nullptr)};
       SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
 
-      std::vector<SDL_GPUBufferBinding> bindings{{vertexBuffer, 0}};
+      std::vector<SDL_GPUBufferBinding> bindings{
+          {.buffer = vertexBuffer, .offset = 0}};
       SDL_BindGPUVertexBuffers(renderPass, 0, bindings.data(), bindings.size());
       SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
       SDL_EndGPURenderPass(renderPass);
@@ -288,6 +340,7 @@ int main() {
     if (!SDL_SubmitGPUCommandBuffer(commandBuffer)) {
       std::cerr << "Couldnt submit GPU commandBuffer Error: " << SDL_GetError()
                 << std::endl;
+      SDL_DestroyGPUDevice(device);
       SDL_DestroyWindow(win);
       SDL_Quit();
       return 1;
