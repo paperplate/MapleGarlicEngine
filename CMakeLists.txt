@@ -22,10 +22,18 @@ FetchContent_MakeAvailable(glm)
 
 find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3-shared)
 
-add_executable(${PROJECT_NAME} src/main.cpp)
+add_executable(${PROJECT_NAME}
+  src/main.cpp
+)
+
+target_sources(${PROJECT_NAME}
+  PRIVATE
+  FILE_SET CXX_MODULES FILES
+  src/MapleGarlicEngine.ixx
+)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
-CXX_MODULE_STD ON
+  CXX_MODULE_STD ON
 )
 
 target_compile_options(${PROJECT_NAME} PRIVATE -fmodules-ts)
