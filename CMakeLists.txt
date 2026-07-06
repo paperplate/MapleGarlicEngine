@@ -21,6 +21,11 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glm)
 
 find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3-shared)
+message("SDL3 Found: ${SDL3_FOUND}")
+find_package(SDL3_image REQUIRED CONFIG)
+message("SDL3_Image Found: ${SDL3_image_FOUND}")
+find_package(SDL3_ttf REQUIRED CONFIG)
+message("SDL3_ttf Found: ${SDL3_ttf_FOUND}")
 
 add_executable(${PROJECT_NAME}
   src/main.cpp
@@ -30,6 +35,9 @@ target_sources(${PROJECT_NAME}
   PRIVATE
   FILE_SET CXX_MODULES FILES
   src/MapleGarlicEngine.ixx
+  src/MapleGarlicEngine-Engine.ixx
+  src/MapleGarlicEngine-Texture.ixx
+  src/MapleGarlicEngine-Utils.ixx
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -40,6 +48,8 @@ target_compile_options(${PROJECT_NAME} PRIVATE -fmodules-ts)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
   SDL3::SDL3
+  SDL3_image::SDL3_image
+  SDL3_ttf::SDL3_ttf
   glm::glm
 )
 
