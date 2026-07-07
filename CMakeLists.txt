@@ -27,29 +27,49 @@ message("SDL3_Image Found: ${SDL3_image_FOUND}")
 find_package(SDL3_ttf REQUIRED CONFIG)
 message("SDL3_ttf Found: ${SDL3_ttf_FOUND}")
 
-add_executable(${PROJECT_NAME}
-  src/main.cpp
-)
+add_library(${PROJECT_NAME} SHARED)
 
 target_sources(${PROJECT_NAME}
-  PRIVATE
+  PUBLIC
   FILE_SET CXX_MODULES FILES
   src/MapleGarlicEngine.ixx
+  src/MapleGarlicEngine-AssetManager.ixx
   src/MapleGarlicEngine-Engine.ixx
-  src/MapleGarlicEngine-Texture.ixx
   src/MapleGarlicEngine-Utils.ixx
+  PRIVATE
+  src/MapleGarlicEngine-AssetManager.cpp
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
   CXX_MODULE_STD ON
 )
 
-target_compile_options(${PROJECT_NAME} PRIVATE -fmodules-ts)
+target_compile_options(${PROJECT_NAME} PRIVATE -fmodules-ts -Wall)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE 
+target_link_libraries(${PROJECT_NAME} PRIVATE
   SDL3::SDL3
   SDL3_image::SDL3_image
   SDL3_ttf::SDL3_ttf
   glm::glm
 )
 
+
+add_executable(Test
+  src/main.cpp
+)
+
+target_link_libraries(Test PRIVATE
+  SDL3::SDL3
+  ${PROJECT_NAME}
+)
+
+add_executable(Tetris
+  src/tetris.cpp
+)
+
+target_compile_options(Tetris PRIVATE -fmodules-ts -Wall)
+
+target_link_libraries(Tetris PRIVATE
+  SDL3::SDL3
+  ${PROJECT_NAME}
+)

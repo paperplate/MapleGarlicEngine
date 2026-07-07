@@ -59,6 +59,4 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event)
 
 void SDL_AppQuit(void* appstate, SDL_AppResult result)
 {
-   auto* engine = static_cast<Engine*>(appstate);
-   SDL_DestroyWindow(engine->mWindow);
 }

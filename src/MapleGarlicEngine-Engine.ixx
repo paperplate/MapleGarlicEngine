@@ -6,7 +6,7 @@ module;
 #include <glm/glm.hpp>
 
 export module MapleGarlicEngine:Engine;
-import :Texture;
+import :AssetManager;
 import :Utils;
 
 import std;
@@ -47,6 +47,53 @@ struct Particles
          mParticles.push_back(p);
       }
    }
+};
+
+struct DynamicText
+{
+   DynamicText()
+   {
+      mFont = LoadFont("./UnboundedRegular-DYRl3.ttf", 16.0f);
+      if (mFont == nullptr)
+      {
+         log(LogType::ERROR, "Failed to load font");
+         assert(0 && "Failed to load font");
+      }
+   }
+   ~DynamicText()
+   {
+      SDL_DestroyTexture(mFontTextTexture);
+   }
+
+   void Render(SDL_Renderer* r, std::string text, float x, float y, float w, float h)
+   {
+      if (text != mCachedText)
+      {
+         // static float size = 1.0f;
+         // size += 0.1f;
+         // TTF_SetFontSize(mFont, size);
+         // TTF_SetFontOutline(mFont, 10);
+         // TTF_SetFontStyle(mFont, TTF_STYLE_BOLD | TTF_STYLE_UNDERLINE);
+         // TTF_SetFontHinting(mFont, TTF_HINTING_LIGHT_SUBPIXEL);
+         SDL_Surface* textSurface =
+            // TTF_RenderText_Shaded(mFont, text.c_str(), 0, SDL_Color{255, 255, 0, 255},
+            // SDL_Color{0, 255, 255, 255});
+            // TTF_RenderText_Blended(mFont, text.c_str(), 0, SDL_Color{255, 255, 0, 255});
+            TTF_RenderText_Solid_Wrapped(mFont, text.c_str(), 0, SDL_Color{255, 255, 0, 255}, 120);
+
+         mFontTextTexture = SDL_CreateTextureFromSurface(r, textSurface);
+
+         SDL_DestroySurface(textSurface);
+         mCachedText = text;
+      }
+
+      SDL_FRect textRect{.x = x, .y = y, .w = w, .h = h};
+      SDL_RenderTexture(r, mFontTextTexture, nullptr, &textRect);
+   }
+
+   std::string mCachedText;
+   TTF_Font* mFont = nullptr;
+   SDL_Texture* mFontTextTexture = nullptr;
 };
 
 struct Frame
@@ -96,8 +143,7 @@ struct Sprite
 {
    Sprite(SDL_Renderer* r, std::string filename)
    {
-      // SDL_Surface* surface = SDL_LoadBMP(filename.c_str());
-      SDL_Surface* surface = IMG_Load(filename.c_str());
+      SDL_Surface* surface = LoadImage(filename.c_str());
       const SDL_PixelFormatDetails* details = SDL_GetPixelFormatDetails(surface->format);
       const SDL_Palette* palette = SDL_GetSurfacePalette(surface);
       uint32_t colourKey = SDL_MapRGB(details, palette, 0xFF, 0x7F, 0x7F);
@@ -195,7 +241,6 @@ export class Engine
    ~Engine()
    {
       mSprite.reset(nullptr);
-      SDL_DestroyTexture(mFontText);
       TTF_Quit();
       if (mTexture)
       {
@@ -245,17 +290,7 @@ export class Engine
          return false;
       }
 
-      mFont = TTF_OpenFont("./UnboundedRegular-DYRl3.ttf", 16.0f);
-      if (mFont == nullptr)
-      {
-         log(LogType::ERROR, "Failed to load font");
-         return false;
-      }
-
-      SDL_Surface* textSurface =
-         TTF_RenderText_Solid(mFont, "Hello", 0, SDL_Color{255, 255, 0, 255});
-      mFontText = SDL_CreateTextureFromSurface(mRenderer, textSurface);
-      SDL_DestroySurface(textSurface);
+      mHello = std::make_unique<DynamicText>();
 
       SetupSceneData();
 
@@ -551,7 +586,7 @@ export class Engine
    void SetupSceneData()
    {
       // mSprite = std::make_unique<Sprite>(mRenderer, "./test.bmp");
-      mSprite = std::make_unique<Sprite>(mRenderer, "./_Attack.png");
+      mSprite = std::make_unique<Sprite>(mRenderer, "./_Attack.PNG");
    }
 
    SDL_Window* mWindow;
@@ -563,8 +598,7 @@ export class Engine
    SDL_Texture* mTexture;
    SDL_Surface* mSurface;
    std::unique_ptr<Sprite> mSprite;
-   TTF_Font* mFont = nullptr;
-   SDL_Texture* mFontText = nullptr;
+   std::unique_ptr<DynamicText> mHello;
 
  private:
    void Input()
@@ -607,8 +641,11 @@ export class Engine
    {
       mSprite->Render(mRenderer);
 
-      SDL_FRect textRect{.x = 20, .y = 120, .w = 100, .h = 20};
-      SDL_RenderTexture(mRenderer, mFontText, nullptr, &textRect);
+      static int counter = -1000000;
+      counter++;
+      std::string someText = "counter: " + std::to_string(counter);
+      mHello->Render(mRenderer, someText, 20.0f, 200.0f, 100.0f, 20.0f);
+
       SDL_RenderPresent(mRenderer);
       /*
        // colours can be modified by input
