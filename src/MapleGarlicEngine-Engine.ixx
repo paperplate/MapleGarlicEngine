@@ -3,7 +3,8 @@ module;
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
-#include <glm/glm.hpp>
+// #include <glm/glm.hpp>
+#include <cassert>
 
 export module MapleGarlicEngine:Engine;
 import :AssetManager;
@@ -13,47 +14,51 @@ import std;
 
 constexpr int gScreenWidth{640};
 constexpr int gScreenHeight{480};
+constexpr int gScreenFps{60};
 
-struct Vertex
+struct Color
 {
-   glm::vec3 position;
-   glm::vec4 color;
-};
+   uint8_t r;
+   uint8_t g;
+   uint8_t b;
+   uint8_t a;
 
-struct UniformBuffer
-{
-   float time;
-};
-
-struct Particles
-{
-   struct Particle
+   bool operator==(const Color& other) const
    {
-      float mSpeed;
-      float mVelocity;
-   };
+      bool result = true;
+      result &= r == other.r;
+      result &= g == other.g;
+      result &= b == other.b;
+      result &= a == other.a;
+      return result;
+   }
 
-   std::vector<SDL_FPoint> mPoints;
-   std::vector<Particle> mParticles;
-   Particles(size_t numOfPoints)
+   SDL_Color GetSDLColor() const
    {
-      for (int i = 0; i < numOfPoints; i++)
-      {
-         Particle p{.mSpeed = static_cast<float>(SDL_rand(10)),
-                    .mVelocity = static_cast<float>(SDL_rand(180))};
-         SDL_FPoint point{.x = static_cast<float>(SDL_rand(gScreenWidth)),
-                          .y = static_cast<float>(SDL_rand(10))};
-         mPoints.push_back(point);
-         mParticles.push_back(p);
-      }
+      return SDL_Color{.r = r, .g = g, .b = b, .a = a};
+   }
+
+   SDL_FColor GetSDLFColor() const
+   {
+      return SDL_FColor{.r = static_cast<float>(r) / 255.0f,
+                        .g = static_cast<float>(g) / 255.0f,
+                        .b = static_cast<float>(b) / 255.0f,
+                        .a = static_cast<float>(a) / 255.0f};
    }
 };
+
+constexpr Color gWhite{.r = 255, .g = 255, .b = 255, .a = 255};
+constexpr Color gBlack{.r = 0, .g = 0, .b = 0, .a = 255};
+constexpr Color gRed{.r = 255, .g = 0, .b = 0, .a = 255};
+constexpr Color gGreen{.r = 0, .g = 255, .b = 0, .a = 255};
+constexpr Color gBlue{.r = 0, .g = 0, .b = 255, .a = 255};
+constexpr Color gYellow{.r = 255, .g = 255, .b = 0, .a = 255};
 
 struct DynamicText
 {
    DynamicText()
    {
-      mFont = LoadFont("./UnboundedRegular-DYRl3.ttf", 16.0f);
+      mFont = LoadFont("./UnboundedRegular-DYRl3.ttf", 12.0f);
       if (mFont == nullptr)
       {
          log(LogType::ERROR, "Failed to load font");
@@ -63,23 +68,15 @@ struct DynamicText
    ~DynamicText()
    {
       SDL_DestroyTexture(mFontTextTexture);
+      TTF_CloseFont(mFont);
    }
 
    void Render(SDL_Renderer* r, std::string text, float x, float y, float w, float h)
    {
       if (text != mCachedText)
       {
-         // static float size = 1.0f;
-         // size += 0.1f;
-         // TTF_SetFontSize(mFont, size);
-         // TTF_SetFontOutline(mFont, 10);
-         // TTF_SetFontStyle(mFont, TTF_STYLE_BOLD | TTF_STYLE_UNDERLINE);
-         // TTF_SetFontHinting(mFont, TTF_HINTING_LIGHT_SUBPIXEL);
          SDL_Surface* textSurface =
-            // TTF_RenderText_Shaded(mFont, text.c_str(), 0, SDL_Color{255, 255, 0, 255},
-            // SDL_Color{0, 255, 255, 255});
-            // TTF_RenderText_Blended(mFont, text.c_str(), 0, SDL_Color{255, 255, 0, 255});
-            TTF_RenderText_Solid_Wrapped(mFont, text.c_str(), 0, SDL_Color{255, 255, 0, 255}, 120);
+            TTF_RenderText_Solid(mFont, text.c_str(), 0, gYellow.GetSDLColor());
 
          mFontTextTexture = SDL_CreateTextureFromSurface(r, textSurface);
 
@@ -96,589 +93,487 @@ struct DynamicText
    SDL_Texture* mFontTextTexture = nullptr;
 };
 
-struct Frame
+bool CheckCollision(const SDL_Rect& a, const SDL_Rect& b)
 {
-   SDL_FRect mSrc;
-   Frame(float x, float y, float w, float h) : mSrc{.x = x, .y = y, .w = w, .h = h}
+   int aMinX{a.x};
+   int aMaxX{a.x + a.w};
+   int aMinY{a.y};
+   int aMaxY{a.y + a.h};
+
+   int bMinX{b.x};
+   int bMaxX{b.x + b.w};
+   int bMinY{b.y};
+   int bMaxY{b.y + b.h};
+
+   if (aMinX >= bMaxX)
    {
+      return false;
    }
+
+   if (aMaxX <= bMinX)
+   {
+      return false;
+   }
+
+   if (aMinY >= bMaxY)
+   {
+      return false;
+   }
+
+   if (aMaxY <= bMinY)
+   {
+      return false;
+   }
+
+   return true;
+}
+
+class Timer
+{
+ public:
+   Timer();
+
+   void Start();
+   void Stop();
+   void Pause();
+   void UnPause();
+
+   uint64_t GetTicksNS();
+
+   bool IsStarted() const;
+   bool IsPaused() const;
+
+ private:
+   // clock time when timer started
+   uint64_t mStartTicks;
+
+   // ticks stored when timer was paused
+   uint64_t mPausedTicks;
+
+   bool mPaused;
+   bool mStarted;
 };
 
-struct Animation
+Timer::Timer() : mStartTicks{0}, mPausedTicks{0}, mPaused{false}, mStarted{false}
 {
-   std::vector<Frame> mFrames;
-   std::size_t mCurrentFrame = 0;
-   std::size_t mMaxFrames = 0;
+}
 
-   void LoadFrames(float w, float h, int frameCount)
-   {
-      mMaxFrames = frameCount;
-      for (int i = 0; i < frameCount; i++)
-      {
-         // 30, 160, 290, 410
-         mFrames.push_back(Frame(i * 130 + 30, 40, 40, 40));
-      }
-   }
-
-   SDL_FRect GetFrameAsSDL_FRect(int index) const
-   {
-      return mFrames.at(index).mSrc;
-   }
-   SDL_FRect GetFrameAsSDL_FRect() const
-   {
-      return mFrames.at(mCurrentFrame).mSrc;
-   }
-
-   void LoopAnimation()
-   {
-      mCurrentFrame++;
-      if (mCurrentFrame >= mMaxFrames)
-      {
-         mCurrentFrame = 0;
-      }
-   }
-};
-
-struct Sprite
+void Timer::Start()
 {
-   Sprite(SDL_Renderer* r, std::string filename)
-   {
-      SDL_Surface* surface = LoadImage(filename.c_str());
-      const SDL_PixelFormatDetails* details = SDL_GetPixelFormatDetails(surface->format);
-      const SDL_Palette* palette = SDL_GetSurfacePalette(surface);
-      uint32_t colourKey = SDL_MapRGB(details, palette, 0xFF, 0x7F, 0x7F);
-      SDL_SetSurfaceColorKey(surface, true, colourKey);
-      mAnimation.LoadFrames(40, 40, 4);
-      mTexture = SDL_CreateTextureFromSurface(r, surface);
-      SDL_DestroySurface(surface);
-   }
+   mStarted = true;
+   mPaused = false;
 
-   ~Sprite()
+   mStartTicks = SDL_GetTicksNS();
+   mPausedTicks = 0;
+}
+
+void Timer::Stop()
+{
+   mStarted = false;
+   mPaused = false;
+
+   mStartTicks = 0;
+   mPausedTicks = 0;
+}
+
+void Timer::Pause()
+{
+   if (mStarted && !mPaused)
    {
-      if (mTexture)
+      mPaused = true;
+      mPausedTicks = SDL_GetTicksNS() - mStartTicks;
+      mStartTicks = 0;
+   }
+}
+
+void Timer::UnPause()
+{
+   if (mStarted && mPaused)
+   {
+      mPaused = false;
+      mStartTicks = SDL_GetTicksNS() - mPausedTicks;
+      mPausedTicks = 0;
+   }
+}
+
+uint64_t Timer::GetTicksNS()
+{
+   uint64_t time{0};
+
+   if (mStarted)
+   {
+      if (mPaused)
       {
-         SDL_DestroyTexture(mTexture);
-         mTexture = nullptr;
+         time = mPausedTicks;
+      }
+      else
+      {
+         time = SDL_GetTicksNS() - mStartTicks;
       }
    }
 
-   void SetPosition(float x, float y)
-   {
-      mDstRect.x = x;
-      mDstRect.y = y;
-   }
+   return time;
+}
 
-   void SetDimensions(float w, float h)
+struct Boxes
+{
+ public:
+   struct Attributes
    {
-      mDstRect.w = w;
-      mDstRect.h = h;
-   }
+      int velocityX;
+      int velocityY;
+      Color color;
+   };
 
-   void Update()
+   Boxes(size_t numOfBoxes, bool isPlayer = false) : mIsPlayer{isPlayer}
    {
-      static int xDirection = 1;
-      if (mDstRect.x > gScreenWidth - mDstRect.w)
+      for (size_t i = 0; i < numOfBoxes; i++)
       {
-         xDirection = 0;
-         mFlipMode = SDL_FLIP_HORIZONTAL;
-      }
-      if (mDstRect.x < 0)
-      {
-         xDirection = 1;
-         mFlipMode = SDL_FLIP_NONE;
-      }
+         Color c = gWhite;
+         int n = SDL_rand(4);
+         if (n == 1)
+         {
+            c = gRed;
+         }
+         else if (n == 2)
+         {
+            c = gGreen;
+         }
+         else if (n == 0)
+         {
+            c = gBlue;
+         }
+         SDL_Rect tmp{
+            .x = SDL_rand(gScreenWidth - 10), .y = SDL_rand(gScreenHeight - 10), .w = 10, .h = 10};
 
-      mDstRect.x += (xDirection == 1) ? 0.1f : -0.1f;
-
-      mAnimation.LoopAnimation();
-      mSrcRect = mAnimation.GetFrameAsSDL_FRect();
-      // mDstRect.x = fmod(mDstRect.x, gScreenWidth);
+         mAttr.emplace_back(Attributes{.velocityX = 1, .velocityY = 1, .color = c});
+         mRects.push_back(tmp);
+      }
    }
 
    void Render(SDL_Renderer* r)
    {
-      SDL_SetRenderDrawColor(r, 0x00, 0x00, 0x00, 0xFF);
-      SDL_RenderClear(r);
-
-      SDL_SetRenderDrawColor(r, 0xFF, 0xFF, 0xFF, 0xFF);
-      static int counter = 0;
-      counter++;
-      auto fmtStr = std::format("my str {}", counter);
-      SDL_RenderDebugText(r, 100, 10, fmtStr.c_str());
-      SDL_RenderDebugTextFormat(r, 200, 10, fmtStr.c_str());
-
-      SDL_FPoint centre{.x = 0.0, .y = 0.0};
-      SDL_RenderTextureRotated(r, mTexture, &mSrcRect, &mDstRect, 0.0, &centre, mFlipMode);
-      // SDL_RenderTexture(r, mTexture, &mSrcRect, &mDstRect);
-
-      SDL_SetTextureScaleMode(mTexture, SDL_SCALEMODE_LINEAR); // linear is default
+      // SDL3 internally batches commands, can optimize later
+      for (auto&& [attrs, rect] : std::views::zip(mAttr, mRects))
+      {
+         SDL_SetRenderDrawColor(r, attrs.color.r, attrs.color.g, attrs.color.b, attrs.color.a);
+         SDL_FRect drawingRect{.x = static_cast<float>(rect.x),
+                               .y = static_cast<float>(rect.y),
+                               .w = static_cast<float>(rect.w),
+                               .h = static_cast<float>(rect.h)};
+         SDL_RenderRect(r, &drawingRect);
+      }
    }
 
-   SDL_FlipMode mFlipMode = SDL_FLIP_NONE;
-   SDL_Texture* mTexture;
-   SDL_FRect mSrcRect{.x = 30, .y = 40, .w = 40, .h = 40};
-   SDL_FRect mDstRect{.x = 50, .y = 100, .w = 128, .h = 128};
-   Animation mAnimation;
+   void SetVelocity(int x, int y)
+   {
+      mAttr[0].velocityX = x;
+      mAttr[0].velocityY = y;
+   }
+
+   SDL_Rect GetBox() const
+   {
+      return mRects[0];
+   }
+
+   Attributes GetAttributes() const
+   {
+      return mAttr[0];
+   }
+
+   void Update()
+   {
+      if (mIsPlayer)
+      {
+         int newX = mRects[0].x + mAttr[0].velocityX;
+         int newY = mRects[0].y + mAttr[0].velocityY;
+         mRects[0].x = std::clamp(newX, 0, gScreenWidth - mRects[0].w);
+         mRects[0].y = std::clamp(newY, 0, gScreenHeight - mRects[0].h);
+      }
+      // for (auto&& [attrs, rect] : std::views::zip(mAttr, mRects))
+      //{
+      //  int newX = rect.x + SDL_rand(3) - 1;
+      //  int newY = rect.y + SDL_rand(3) - 1;
+
+      // rect.x = std::clamp(newX, 0, gScreenWidth - rect.w);
+      // rect.y = std::clamp(newY, 0, gScreenHeight - rect.h);
+      //}
+   }
+
+ private:
+   const bool mIsPlayer;
+   std::vector<Attributes> mAttr;
+   std::vector<SDL_Rect> mRects;
 };
 
-/*
-auto windowDeleter = [](SDL_Window* w) { SDL_DestroyWindow(w); };
-using SDL_WindowPtr = std::unique_ptr < SDL_Window, decltype(windowDeleter) > ;
-SDL_WindowPtr mWindow{nullptr, windowDeleter };
+class Tetris
+{
+ public:
+   Tetris();
+   ~Tetris();
 
-mWindow.reset(SDL_CreateWindow(title, 320, 240, SDL_WINDOW_RESIZABLE));
-assert(mWindow);
- */
+   void Update();
+   void Render(SDL_Renderer* r);
+   std::optional<bool> ProcessEvents(SDL_Event* event);
+
+ private:
+   Boxes mBoxes{1};
+   Boxes mPlayer{1, true};
+
+   struct Title
+   {
+      const char* mStr = "Tetris";
+   };
+   struct Playing
+   {
+      uint64_t mPoints{0};
+      std::string mScore = "Score: ";
+   };
+   struct GameOver
+   {
+      const char* mStr = "Game Over";
+   };
+
+   using State = std::variant<Title, Playing, GameOver>;
+
+   State mState;
+};
+
+Tetris::Tetris()
+{
+}
+Tetris::~Tetris()
+{
+}
+
+void Tetris::Update()
+{
+   // mParticles.Update();
+   mBoxes.Update();
+   mPlayer.Update();
+   bool collided = CheckCollision(mBoxes.GetBox(), mPlayer.GetBox());
+   if (collided)
+   {
+      auto attr = mPlayer.GetAttributes();
+      attr.velocityX = -attr.velocityX;
+      attr.velocityY = -attr.velocityY;
+      mPlayer.SetVelocity(attr.velocityX, attr.velocityY);
+      mPlayer.Update();
+   }
+   mPlayer.SetVelocity(0, 0);
+}
+
+void Tetris::Render(SDL_Renderer* r)
+{
+   mBoxes.Render(r);
+   mPlayer.Render(r);
+}
+
+std::optional<bool> Tetris::ProcessEvents(SDL_Event* event)
+{
+   if (event->type == SDL_EVENT_KEY_DOWN)
+   {
+      int x = 0;
+      int y = 0;
+      if (event->key.key == SDLK_W)
+      {
+         y = -1;
+      }
+      else if (event->key.key == SDLK_A)
+      {
+         x = -1;
+      }
+      else if (event->key.key == SDLK_S)
+      {
+         y = 1;
+      }
+      else if (event->key.key == SDLK_D)
+      {
+         x = 1;
+      }
+      mPlayer.SetVelocity(x, y);
+   }
+   return true;
+}
 
 export class Engine
 {
  public:
-   Engine()
-      : mContinue{true}, mWindow{nullptr}, mRenderer{nullptr}, mDevice{nullptr}, mTimeUniform{},
-        mPipeline{nullptr}, mVertexBuffer{nullptr}, mTexture{nullptr}, mSprite{nullptr}
-   {
-   }
-   ~Engine()
-   {
-      mSprite.reset(nullptr);
-      TTF_Quit();
-      if (mTexture)
-      {
-         // mTexture->Destroy();
-         SDL_DestroyTexture(mTexture);
-         mTexture = nullptr;
-      }
-
-      if (mRenderer)
-      {
-         SDL_DestroyRenderer(mRenderer);
-         mRenderer = nullptr;
-      }
-
-      SDL_DestroyWindow(mWindow);
-      mWindow = nullptr;
-
-      SDL_Quit();
-   }
+   Engine();
+   ~Engine();
    Engine(const Engine&) = delete;
    Engine& operator=(const Engine&) = delete;
 
-   bool Init()
-   {
-      if (!SDL_Init(SDL_INIT_VIDEO))
-      {
-         log(LogType::ERROR, std::string("SDL_Init Error: ").append(SDL_GetError()));
-         assert(0 && "SDL_Init(SDL_INIT_VIDEO) failed");
-         return false;
-      }
+   bool Init();
 
-      if (!SDL_CreateWindowAndRenderer("MapleGarlicEngine", gScreenWidth, gScreenHeight,
-                                       SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE, &mWindow,
-                                       &mRenderer))
-      {
-         log(LogType::ERROR, std::string("SDL_CreateWindow Error: ").append(SDL_GetError()));
-         return false;
-      }
+   std::optional<bool> Tick();
 
-      SDL_SetRenderLogicalPresentation(mRenderer, gScreenWidth, gScreenHeight,
-                                       SDL_LOGICAL_PRESENTATION_LETTERBOX);
+   std::optional<bool> ProcessEvents(SDL_Event* event);
 
-      if (!TTF_Init())
-      {
-         log(LogType::ERROR, std::string("Unable to init TTF").append(SDL_GetError()));
-         assert(0 && "TTF_INIT() failed");
-         return false;
-      }
-
-      mHello = std::make_unique<DynamicText>();
-
-      SetupSceneData();
-
-      /*SDL_FillSurfaceRect(mSurface, nullptr, 0x000000FF);
-
-      mSurface = SDL_LoadBMP("./test.bmp");
-      if (mSurface == nullptr)
-      {
-         std::cerr << "LoadBMP Error: " << SDL_GetError() << std::endl;
-         return false;
-      }*/
-
-      SDL_ShowWindow(mWindow);
-
-      // mTexture = std::make_unique<Texture>(&mWindow, &mRenderer);
-
-      /*mDevice = {SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_MSL |
-          SDL_GPU_SHADERFORMAT_DXIL,
-          true, // debug mode
-          nullptr)};
-      if (mDevice == nullptr)
-      {
-        std::cerr << "SDL_CreateGPUDevice Error: " << SDL_GetError() << std::endl;
-        return false;
-      }
-      std::println("GPU backend: {}", SDL_GetGPUDeviceDriver(mDevice));
-
-      if (!SDL_ClaimWindowForGPUDevice(mDevice, mWindow))
-      {
-        std::cerr << "SDL_ClaimWindowForGPUDevice Error: " << SDL_GetError() << std::endl;
-        return false;
-      }
-
-
-      /*  SDL_GPUShader* vertexShader{LoadShader(mDevice, "shader.vert.spv", 0, 0, 0, 0)};
-          if (!vertexShader)
-          {
-          log(LogType::ERROR, "Couldnt load vertex shader!");
-          return false;
-          }
-
-          SDL_GPUShader* fragmentShader{LoadShader(mDevice, "shader.frag.spv", 0, 1, 0, 0)};
-          if (!fragmentShader)
-          {
-          log(LogType::ERROR, "Couldnt load fragment shader!");
-          return false;
-          }
-
-          std::vector<SDL_GPUColorTargetDescription> colorTargetDescriptions{
-          {.format = SDL_GetGPUSwapchainTextureFormat(mDevice, mWindow)}};
-
-          SDL_GPUGraphicsPipelineTargetInfo targetInfo{
-          .color_target_descriptions = colorTargetDescriptions.data(),
-          .num_color_targets = static_cast<uint32_t>(colorTargetDescriptions.size())};
-
-          std::vector<SDL_GPUVertexAttribute> vertexAttributes{
-          {.location = 0, // layout (location = 0) in shader
-          .buffer_slot = 0,
-          .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-          .offset = 0},
-          {.location = 1, // layout (location = 1) in shader
-          .buffer_slot = 0,
-          .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
-          .offset = sizeof(float) * 3} // 4th float form current buffer
-          };
-
-          std::vector<SDL_GPUVertexBufferDescription> vertexBufferDescriptions{};
-          vertexBufferDescriptions.emplace_back(0, sizeof(Vertex), SDL_GPU_VERTEXINPUTRATE_VERTEX,
-      0);
-
-          SDL_GPUVertexInputState vertexInputState{
-          .vertex_buffer_descriptions = vertexBufferDescriptions.data(),
-          .num_vertex_buffers = static_cast<uint32_t>(vertexBufferDescriptions.size()),
-          .vertex_attributes = vertexAttributes.data(),
-          .num_vertex_attributes = static_cast<uint32_t>(vertexAttributes.size()),
-          };
-
-          SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo{
-          .vertex_shader = vertexShader,
-          .fragment_shader = fragmentShader,
-          .vertex_input_state = vertexInputState,
-          .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-          .rasterizer_state{.fill_mode = SDL_GPU_FILLMODE_FILL},
-          .multisample_state = {},
-          .depth_stencil_state = {},
-          .target_info = targetInfo};
-
-          mPipeline = {SDL_CreateGPUGraphicsPipeline(mDevice, &pipelineCreateInfo)};
-          if (!mPipeline)
-          {
-          log(LogType::ERROR, "Failed to create GPU graphics pipeline");
-          return false;
-          }
-
-          SDL_ReleaseGPUShader(mDevice, vertexShader);
-          SDL_ReleaseGPUShader(mDevice, fragmentShader);
-
-          std::vector<Vertex> vertices{{{0.0f, 0.5f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-          {{-0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
-          {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f, 1.0f}}};
-
-          SDL_GPUBufferCreateInfo bufferCreateInfo{
-          .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
-          .size = static_cast<uint32_t>(vertices.size() * sizeof(Vertex)),
-          .props = 0};
-          mVertexBuffer = {SDL_CreateGPUBuffer(mDevice, &bufferCreateInfo)};
-      if (!mVertexBuffer)
-      {
-        log(LogType::ERROR, "Failed to create vertex buffer");
-        return false;
-      }
-
-      SDL_GPUTransferBufferCreateInfo transferBufferCreateInfo{
-        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD, .size = bufferCreateInfo.size, .props = 0};
-      auto* transferBuffer{SDL_CreateGPUTransferBuffer(mDevice, &transferBufferCreateInfo)};
-      if (!transferBuffer)
-      {
-        log(LogType::ERROR, "Failed to create transfer buffer");
-        return false;
-      }
-
-      auto transferBufferDataPtr{
-        static_cast<Vertex*>(SDL_MapGPUTransferBuffer(mDevice, transferBuffer, false))};
-      if (!transferBufferDataPtr)
-      {
-        log(LogType::ERROR, "Failed to map transfer buffer");
-        return false;
-      }
-
-      std::span transferBufferData{transferBufferDataPtr, vertices.size()};
-
-      std::ranges::copy(vertices, transferBufferData.begin());
-
-      SDL_UnmapGPUTransferBuffer(mDevice, transferBuffer);
-
-      SDL_GPUCommandBuffer* transferCommandBuffer{SDL_AcquireGPUCommandBuffer(mDevice)};
-      if (!transferCommandBuffer)
-      {
-        log(LogType::ERROR, "Failed to acquire command buffer");
-        return false;
-      }
-
-      SDL_GPUCopyPass* copyPass{SDL_BeginGPUCopyPass(transferCommandBuffer)};
-      SDL_GPUTransferBufferLocation source{.transfer_buffer = transferBuffer, .offset = 0};
-      SDL_GPUBufferRegion dest{.buffer = mVertexBuffer, .offset = 0, .size = bufferCreateInfo.size};
-      SDL_UploadToGPUBuffer(copyPass, &source, &dest, true);
-      SDL_EndGPUCopyPass(copyPass);
-
-      if (!SDL_SubmitGPUCommandBuffer(transferCommandBuffer))
-      {
-        log(LogType::ERROR, "Failed to submit command buffer");
-        return false;
-      }
-
-      SDL_ReleaseGPUTransferBuffer(mDevice, transferBuffer);*/
-
-      return true;
-   }
-
-   bool Tick()
-   {
-      Input();
-      Update();
-      Render();
-      /*SDL_GPUCommandBuffer* commandBuffer{SDL_AcquireGPUCommandBuffer(mDevice)};
-        if (!commandBuffer)
-        {
-        return false;
-        }
-
-        SDL_GPUTexture* swapchainTexture{};
-        uint32_t width;
-        uint32_t height;
-        SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer, mWindow, &swapchainTexture, &width,
-        &height);
-        if (swapchainTexture)
-        {
-        mTimeUniform.time = SDL_GetTicksNS() / 1e9f; // time since program start in seconds
-        SDL_PushGPUFragmentUniformData(commandBuffer, 0, &mTimeUniform, sizeof(UniformBuffer));
-
-        SDL_GPUColorTargetInfo colorTarget{};
-        colorTarget.texture = swapchainTexture;
-        colorTarget.store_op = SDL_GPU_STOREOP_STORE;
-        colorTarget.clear_color = SDL_FColor{0.1f, 0.1f, 0.1f, 1.0f};
-        colorTarget.load_op = SDL_GPU_LOADOP_CLEAR;
-
-        std::vector colorTargets{colorTarget};
-
-        SDL_GPURenderPass* renderPass{SDL_BeginGPURenderPass(commandBuffer, colorTargets.data(),
-        colorTargets.size(), nullptr)};
-        SDL_BindGPUGraphicsPipeline(renderPass, mPipeline);
-
-        std::vector<SDL_GPUBufferBinding> bindings{{.buffer = mVertexBuffer, .offset = 0}};
-        SDL_BindGPUVertexBuffers(renderPass, 0, bindings.data(), bindings.size());
-        SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
-        SDL_EndGPURenderPass(renderPass);
-        }
-
-        if (!SDL_SubmitGPUCommandBuffer(commandBuffer))
-        {
-        std::cerr << "Couldnt submit GPU commandBuffer Error: " << SDL_GetError() << std::endl;
-        return false;
-        }
-
-      /*SDL_SetRenderDrawColor(mRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-      SDL_RenderClear(mRenderer);
-
-      mTexture->Render(0.0f, 0.0f);
-
-      SDL_RenderPresent(mRenderer);*/
-
-      return mContinue;
-   }
-
-   SDL_GPUShader* LoadShader(SDL_GPUDevice* device, const std::string& shaderFileName,
-                             uint32_t samplerCount, uint32_t uniformBufferCount,
-                             uint32_t storageBufferCount, uint32_t storageTextureCount)
-   {
-      SDL_GPUShaderStage stage;
-      if (shaderFileName.contains(".vert"))
-      {
-         stage = SDL_GPU_SHADERSTAGE_VERTEX;
-      }
-      else if (shaderFileName.contains(".frag"))
-      {
-         stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
-      }
-      else
-      {
-         log(LogType::ERROR, "Invalid shader stage!");
-         return nullptr;
-      }
-
-      const SDL_GPUShaderFormat backendFormats = SDL_GetGPUShaderFormats(device);
-      SDL_GPUShaderFormat format = SDL_GPU_SHADERFORMAT_INVALID;
-      const char* entrypoint;
-
-      std::string fullPath;
-      const std::string BasePath{SDL_GetBasePath()};
-
-      if (backendFormats & SDL_GPU_SHADERFORMAT_SPIRV)
-      {
-         fullPath = std::format("{}shaders/compiled/{}", BasePath, shaderFileName);
-         format = SDL_GPU_SHADERFORMAT_SPIRV;
-         entrypoint = "main";
-      }
-      // add metal, dx11
-
-      std::ifstream file{fullPath, std::ios::binary};
-      if (!file)
-      {
-         log(LogType::ERROR, std::string("Failed to load shader from disk! ").append(fullPath));
-         return nullptr;
-      }
-      std::vector<uint8_t> code{std::istreambuf_iterator(file), {}};
-
-      SDL_GPUShaderCreateInfo shaderInfo{
-         .code_size = code.size(),
-         .code = code.data(),
-         .entrypoint = entrypoint,
-         .format = format,
-         .stage = stage,
-         .num_samplers = samplerCount,
-         .num_storage_textures = storageTextureCount,
-         .num_storage_buffers = storageBufferCount,
-         .num_uniform_buffers = uniformBufferCount,
-         .props = 0 // no extensions needed yet
-      };
-
-      SDL_GPUShader* shader = SDL_CreateGPUShader(device, &shaderInfo);
-      if (shader == nullptr)
-      {
-         log(LogType::ERROR, "Failed to create shader!");
-         return nullptr;
-      }
-
-      return shader;
-   }
-
-   /*bool LoadMedia()
-   {
-      bool ret{true};
-
-      if (!mTexture->LoadFromFile("logo.png"))
-      {
-         log(LogType::ERROR, "Unable to load PNG");
-         ret = false;
-      }
-
-      return ret;
-   }*/
-
-   void SetupSceneData()
-   {
-      // mSprite = std::make_unique<Sprite>(mRenderer, "./test.bmp");
-      mSprite = std::make_unique<Sprite>(mRenderer, "./_Attack.PNG");
-   }
+   void SetupSceneData();
 
    SDL_Window* mWindow;
    SDL_Renderer* mRenderer;
-   SDL_GPUDevice* mDevice;
-   SDL_GPUGraphicsPipeline* mPipeline;
-   SDL_GPUBuffer* mVertexBuffer;
-   // std::unique_ptr<Texture> mTexture;
-   SDL_Texture* mTexture;
    SDL_Surface* mSurface;
-   std::unique_ptr<Sprite> mSprite;
-   std::unique_ptr<DynamicText> mHello;
+   std::unique_ptr<DynamicText> mText;
+
+   Tetris mGame;
+
+   bool mVSyncEnabled;
+   bool mFpsCapEnabled;
+   Timer mCapTimer;
+   uint64_t mRenderTimeNS;
+   std::stringstream mTimeText;
 
  private:
-   void Input()
+   void Update();
+   void Render();
+};
+
+Engine::Engine()
+   : mWindow{nullptr}, mRenderer{nullptr}, mVSyncEnabled{true}, mFpsCapEnabled{false},
+     mRenderTimeNS{0}
+{
+}
+
+Engine::~Engine()
+{
+   TTF_Quit();
+
+   if (mRenderer)
    {
-      SDL_Event event;
-      while (SDL_PollEvent(&event))
+      SDL_DestroyRenderer(mRenderer);
+      mRenderer = nullptr;
+   }
+
+   SDL_DestroyWindow(mWindow);
+   mWindow = nullptr;
+
+   SDL_Quit();
+}
+
+bool Engine::Init()
+{
+   if (!SDL_Init(SDL_INIT_VIDEO))
+   {
+      log(LogType::ERROR, std::string("SDL_Init Error: ").append(SDL_GetError()));
+      assert(0 && "SDL_Init(SDL_INIT_VIDEO) failed");
+      return false;
+   }
+
+   if (!SDL_CreateWindowAndRenderer("MapleGarlicEngine", gScreenWidth, gScreenHeight,
+                                    SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE, &mWindow, &mRenderer))
+   {
+      log(LogType::ERROR, std::string("SDL_CreateWindow Error: ").append(SDL_GetError()));
+      return false;
+   }
+
+   SDL_SetRenderLogicalPresentation(mRenderer, gScreenWidth, gScreenHeight,
+                                    SDL_LOGICAL_PRESENTATION_LETTERBOX);
+
+   if (!SDL_SetRenderVSync(mRenderer, 1))
+   {
+      log(LogType::ERROR,
+          std::string("Could not enable VSync! SDL Error: ").append(SDL_GetError()));
+      assert(0 && "Enable VSync failed");
+      return false;
+   }
+
+   if (!TTF_Init())
+   {
+      log(LogType::ERROR, std::string("Unable to init TTF").append(SDL_GetError()));
+      assert(0 && "TTF_INIT() failed");
+      return false;
+   }
+
+   mText = std::make_unique<DynamicText>();
+
+   SetupSceneData();
+
+   SDL_ShowWindow(mWindow);
+
+   mCapTimer.Start();
+
+   return true;
+}
+
+std::optional<bool> Engine::Tick()
+{
+   Update();
+   Render();
+
+   return true;
+}
+
+std::optional<bool> Engine::ProcessEvents(SDL_Event* event)
+{
+   std::optional<bool> result = std::nullopt;
+   if (event->type == SDL_EVENT_QUIT)
+   {
+      result = false;
+   }
+   else if (event->type == SDL_EVENT_KEY_DOWN)
+   {
+      // user has pressed a key
+      if (event->key.key == SDLK_ESCAPE)
       {
-         if (event.type == SDL_EVENT_QUIT)
-         {
-            mContinue = false;
-         }
-         else if (event.type == SDL_EVENT_KEY_DOWN)
-         {
-            // user has pressed a key
-            if (event.key.key == SDLK_ESCAPE)
-            {
-               mContinue = false;
-            }
-         }
+         result = false;
+      }
+      else if (event->key.key == SDLK_RETURN)
+      {
+         mVSyncEnabled = !mVSyncEnabled;
+         SDL_SetRenderVSync(mRenderer, (mVSyncEnabled) ? 1 : SDL_RENDERER_VSYNC_DISABLED);
+         result = true;
+      }
+      else if (event->key.key == SDLK_SPACE)
+      {
+         mFpsCapEnabled = !mFpsCapEnabled;
+         result = true;
       }
    }
-   void ProcessEvents()
+
+   if (!result.has_value())
    {
+      result = mGame.ProcessEvents(event);
    }
-   void Update()
+   return result;
+}
+
+void Engine::SetupSceneData()
+{
+}
+
+void Engine::Update()
+{
+   mGame.Update();
+}
+void Engine::Render()
+{
+   SDL_SetRenderDrawColor(mRenderer, gBlack.r, gBlack.g, gBlack.b, gBlack.a);
+   SDL_RenderClear(mRenderer);
+   if (mRenderTimeNS != 0)
    {
-      mSprite->Update();
-      /*for (int i = 0; i < mParticles.mParticles.size(); i++)
-      {
-         mParticles.mPoints[i].y += mParticles.mParticles[i].mSpeed * 0.1f;
-         mParticles.mPoints[i].x += SDL_sinf(mParticles.mParticles[i].mVelocity) * 2.0f;
-         mParticles.mParticles[i].mVelocity += 0.1f;
-         if (mParticles.mPoints[i].y > gScreenHeight)
-         {
-            mParticles.mPoints[i].y = 0;
-         }
-      }*/
-   }
-   void Render()
-   {
-      mSprite->Render(mRenderer);
-
-      static int counter = -1000000;
-      counter++;
-      std::string someText = "counter: " + std::to_string(counter);
-      mHello->Render(mRenderer, someText, 20.0f, 200.0f, 100.0f, 20.0f);
-
-      SDL_RenderPresent(mRenderer);
-      /*
-       // colours can be modified by input
-       SDL_SetRenderDrawColor(mRenderer, 0x00, 0x00, 0x00, 0xFF);
-       SDL_RenderClear(mRenderer);
-
-       SDL_SetRenderDrawColor(mRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-       // SDL_RenderLine(mRenderer, 0.0f, 0.0f, 100.0f, 50.0f);
-
-       SDL_FRect rect{.x = 100, .y = 50, .w = 100, .h = 100};
-       SDL_RenderRect(mRenderer, &rect);
-
-       SDL_RenderPoints(mRenderer, mParticles.mPoints.data(), mParticles.mPoints.size());
-
-       SDL_RenderPresent(mRenderer);
-       /*SDL_Surface* windowSurface = SDL_GetWindowSurface(mWindow);
-       if (windowSurface == nullptr)
-       {
-          log(LogType::ERROR, SDL_GetError());
-          mContinue = false;
-          return;
-       }
-       // nullptr == copy whole surface
-       if (!SDL_BlitSurface(mSurface, nullptr, windowSurface, nullptr))
-       {
-          log(LogType::ERROR, "Blit surface error");
-          return;
-       }
-
-       SDL_UpdateWindowSurface(mWindow);*/
+      double fps{1000000000.0 / static_cast<double>(mRenderTimeNS)};
+      mTimeText.str("");
+      mTimeText << "Frames per second " << (mVSyncEnabled ? "(VSync) " : "")
+                << (mFpsCapEnabled ? "(Cap) " : "") << fps;
+      mText->Render(mRenderer, mTimeText.str(), 5.0f, 5.0f, 300.0f, 20.0f);
    }
 
-   Particles mParticles{1000};
-   bool mContinue;
-   UniformBuffer mTimeUniform;
-};
+   mGame.Render(mRenderer);
+
+   SDL_RenderPresent(mRenderer);
+
+   mRenderTimeNS = mCapTimer.GetTicksNS();
+
+   // if time remaining in frame
+   constexpr uint64_t nsPerFrame = 1000000000 / gScreenFps;
+   if (mFpsCapEnabled && mRenderTimeNS < nsPerFrame)
+   {
+      // sleep remaining frame time
+      SDL_DelayNS(nsPerFrame - mRenderTimeNS);
+
+      // get frame time including sleep time
+      mRenderTimeNS = mCapTimer.GetTicksNS();
+   }
+}

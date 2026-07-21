@@ -72,3 +72,69 @@ TTF_Font* LoadFont(const std::string& filename, const float size)
 
    return font;
 }
+
+// TODO refactor
+SDL_GPUShader* LoadShader(SDL_GPUDevice* device, const std::string& shaderFileName,
+                          uint32_t samplerCount, uint32_t uniformBufferCount,
+                          uint32_t storageBufferCount, uint32_t storageTextureCount)
+{
+   SDL_GPUShaderStage stage;
+   if (shaderFileName.contains(".vert"))
+   {
+      stage = SDL_GPU_SHADERSTAGE_VERTEX;
+   }
+   else if (shaderFileName.contains(".frag"))
+   {
+      stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
+   }
+   else
+   {
+      log(LogType::ERROR, "Invalid shader stage!");
+      return nullptr;
+   }
+
+   const SDL_GPUShaderFormat backendFormats = SDL_GetGPUShaderFormats(device);
+   SDL_GPUShaderFormat format = SDL_GPU_SHADERFORMAT_INVALID;
+   const char* entrypoint;
+
+   std::string fullPath;
+   const std::string BasePath{SDL_GetBasePath()};
+
+   if (backendFormats & SDL_GPU_SHADERFORMAT_SPIRV)
+   {
+      fullPath = std::format("{}shaders/compiled/{}", BasePath, shaderFileName);
+      format = SDL_GPU_SHADERFORMAT_SPIRV;
+      entrypoint = "main";
+   }
+   // add metal, dx11
+
+   std::ifstream file{fullPath, std::ios::binary};
+   if (!file)
+   {
+      log(LogType::ERROR, std::string("Failed to load shader from disk! ").append(fullPath));
+      return nullptr;
+   }
+   std::vector<uint8_t> code{std::istreambuf_iterator(file), {}};
+
+   SDL_GPUShaderCreateInfo shaderInfo{
+      .code_size = code.size(),
+      .code = code.data(),
+      .entrypoint = entrypoint,
+      .format = format,
+      .stage = stage,
+      .num_samplers = samplerCount,
+      .num_storage_textures = storageTextureCount,
+      .num_storage_buffers = storageBufferCount,
+      .num_uniform_buffers = uniformBufferCount,
+      .props = 0 // no extensions needed yet
+   };
+
+   SDL_GPUShader* shader = SDL_CreateGPUShader(device, &shaderInfo);
+   if (shader == nullptr)
+   {
+      log(LogType::ERROR, "Failed to create shader!");
+      return nullptr;
+   }
+
+   return shader;
+}

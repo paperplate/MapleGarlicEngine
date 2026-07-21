@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 4.1)
 
-set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "451f2fe2-a8a2-47c3-bc32-94786d8fc91b")
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "f35a9ac6-8463-4d38-8eec-5d6008153e7d")
 set(CMAKE_CXX_MODULE_STD ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)
 set(CMAKE_CXX_STANDARD 23)
@@ -54,11 +54,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 
-add_executable(Test
+add_executable(EngineTest
   src/main.cpp
 )
 
-target_link_libraries(Test PRIVATE
+target_link_libraries(EngineTest PRIVATE
   SDL3::SDL3
   ${PROJECT_NAME}
 )

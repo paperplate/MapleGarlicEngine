@@ -23,9 +23,8 @@ SDL_AppResult SDL_AppIterate(void* appstate)
    auto* engine = static_cast<Engine*>(appstate);
 
    uint64_t currentTick = SDL_GetTicks();
-   bool run = engine->Tick();
+   auto run = engine->Tick();
    fps++;
-   uint64_t deltaTime = SDL_GetTicks() - currentTick;
 
    if (currentTick > lastTime + 1000)
    {

@@ -16,32 +16,27 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[])
    return SDL_APP_CONTINUE;
 }
 
-uint64_t fps = 0;
-uint64_t lastTime = 0;
 SDL_AppResult SDL_AppIterate(void* appstate)
 {
    auto* engine = static_cast<Engine*>(appstate);
 
-   uint64_t currentTick = SDL_GetTicks();
-   bool run = engine->Tick();
-   fps++;
-   uint64_t deltaTime = SDL_GetTicks() - currentTick;
-
-   if (currentTick > lastTime + 1000)
-   {
-      // SDL_SetRenderDrawColor(engine->mRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
-      // SDL_RenderDebugText(engine->mRenderer, 10, 10, std::to_string(fps).c_str());
-      std::println("{}", fps);
-      lastTime = currentTick;
-      fps = 0;
-   }
+   auto run = engine->Tick();
 
    return (run) ? SDL_APP_CONTINUE : SDL_APP_SUCCESS; // initiates shutdown
 }
 
 SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event)
 {
-   if (event->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
+   auto* engine = static_cast<Engine*>(appstate);
+
+   auto result = engine->ProcessEvents(event);
+   if (!result.has_value())
+   {
+      return SDL_APP_FAILURE;
+   }
+
+   return result.value() ? SDL_APP_CONTINUE : SDL_APP_SUCCESS;
+   /*if (event->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
    {
       return SDL_APP_SUCCESS;
    }
@@ -54,7 +49,7 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event)
       }
    }
 
-   return SDL_APP_CONTINUE;
+   return SDL_APP_CONTINUE;*/
 }
 
 void SDL_AppQuit(void* appstate, SDL_AppResult result)
