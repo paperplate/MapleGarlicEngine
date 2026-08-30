@@ -2,4 +2,4 @@ export module MapleGarlicEngine;
 
 export import :Engine;
 export import :AssetManager;
-export import :Utils;
+export import MapleGarlicEngine.Utils;

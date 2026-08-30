@@ -6,7 +6,7 @@ module;
 
 module MapleGarlicEngine;
 import :AssetManager;
-import :Utils;
+import MapleGarlicEngine.Utils;
 
 import std;
 

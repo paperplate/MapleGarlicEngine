@@ -36,6 +36,9 @@ target_sources(${PROJECT_NAME}
   src/MapleGarlicEngine-AssetManager.ixx
   src/MapleGarlicEngine-Engine.ixx
   src/MapleGarlicEngine-Utils.ixx
+  src/Tetris-Pieces.ixx
+  src/Tetris-State.ixx
+  src/Tetris.ixx
   PRIVATE
   src/MapleGarlicEngine-AssetManager.cpp
 )

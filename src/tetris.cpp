@@ -36,20 +36,6 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event)
    }
 
    return result.value() ? SDL_APP_CONTINUE : SDL_APP_SUCCESS;
-   /*if (event->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
-   {
-      return SDL_APP_SUCCESS;
-   }
-   else if (event->type == SDL_EVENT_KEY_DOWN)
-   {
-      // user has pressed a key
-      if (event->key.key == SDLK_ESCAPE)
-      {
-         return SDL_APP_SUCCESS;
-      }
-   }
-
-   return SDL_APP_CONTINUE;*/
 }
 
 void SDL_AppQuit(void* appstate, SDL_AppResult result)
