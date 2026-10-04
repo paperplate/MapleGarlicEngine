@@ -1,3 +1,4 @@
+#if defined(DOCTEST_CONFIG_DISABLE)
 #define SDL_MAIN_USE_CALLBACKS
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -41,3 +42,20 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event)
 void SDL_AppQuit(void* appstate, SDL_AppResult result)
 {
 }
+#else
+#include <doctest.h>
+int main(int argc, char** argv)
+{
+   doctest::Context context;
+   context.applyCommandLine(argc, argv);
+
+   int res = context.run();
+
+   if (context.shouldExit())
+   {
+      return res;
+   }
+
+   return res;
+}
+#endif
