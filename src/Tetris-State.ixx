@@ -107,15 +107,15 @@ Tetris::Tetris() : mState{Title()}, mDt{0}
 {
    mText = std::make_unique<DynamicText>(gFont);
    auto p0 = LinePiece(gRed);
-   MovePiece{50, 50}(p0);
+   p0.SetPosition(50, 50);
    mPieces.push_back(p0);
 
    auto p1 = BoxPiece(gGreen);
-   MovePiece{150, 50}(p1);
+   p1.SetPosition(150, 50);
    mPieces.push_back(p1);
 
    auto p2 = TPiece(gBlue);
-   MovePiece{250, 50}(p2);
+   p2.SetPosition(250, 50);
    mPieces.push_back(p2);
 }
 Tetris::~Tetris()

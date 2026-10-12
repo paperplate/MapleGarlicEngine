@@ -55,15 +55,15 @@ export std::vector<SDL_Rect> MakePiece(int x, int y, int w, int h)
 class PieceBase
 {
  public:
-   PieceBase(Color c)
-      : mColor{c}, mX{0}, mY{0}, mBoxWidth{10}, mBoxHeight{10}, mActive{false}, Gravity{3}
+   PieceBase(Color c, int gravity = 3)
+      : mColor{c}, mX{0}, mY{0}, mBoxWidth{10}, mBoxHeight{10}, mActive{true}, mGravity{gravity}
    {
       mRects = MakePiece(mX, mY, mBoxWidth, mBoxHeight);
    }
 
    int GetGravity() const
    {
-      return Gravity;
+      return mGravity;
    }
 
    void SetPosition(int x, int y)
@@ -83,6 +83,16 @@ class PieceBase
       return mY;
    }
 
+   void SetActive(bool active)
+   {
+      mActive = active;
+   }
+
+   bool isActive() const
+   {
+      return mActive;
+   }
+
    const Color mColor;
    std::vector<SDL_Rect> mRects;
 
@@ -93,7 +103,7 @@ class PieceBase
    const int mBoxWidth;
    const int mBoxHeight;
    bool mActive;
-   int Gravity;
+   int mGravity;
 
    virtual void UpdatePosition() = 0;
 };
@@ -101,7 +111,7 @@ class PieceBase
 export class LinePiece : public PieceBase
 {
  public:
-   LinePiece(Color c) : PieceBase(c)
+   LinePiece(Color c, int gravity = 3) : PieceBase(c, gravity)
    {
       UpdatePosition();
    }
@@ -123,7 +133,7 @@ export class LinePiece : public PieceBase
 export class BoxPiece : public PieceBase
 {
  public:
-   BoxPiece(Color c) : PieceBase(c)
+   BoxPiece(Color c, int gravity = 3) : PieceBase(c, gravity)
    {
       UpdatePosition();
    }
@@ -145,7 +155,7 @@ export class BoxPiece : public PieceBase
 export class TPiece : public PieceBase
 {
  public:
-   TPiece(Color c) : PieceBase(c)
+   TPiece(Color c, int gravity = 3) : PieceBase(c, gravity)
    {
       UpdatePosition();
    }
@@ -269,26 +279,30 @@ export struct MovePiece
    }
    void operator()(auto& piece) const
    {
-      const int g = piece.GetGravity();
-      const int proposedX = piece.X() + X;
-      const int proposedY = piece.Y() + Y + g;
-      auto m = CalcAllowedMovement(piece, proposedX, proposedY, piece.mRects, gScreenWidth,
-                                   gScreenHeight);
-      if (!m.has_value())
+      if (piece.isActive())
       {
-         piece.SetPosition(proposedX, proposedY);
-      }
-      else
-      {
-         auto [x, y] = m.value();
-         piece.SetPosition(x, y);
+         const int g = piece.GetGravity();
+         const int proposedX = piece.X() + X;
+         const int proposedY = piece.Y() + Y + g;
+         auto m = CalcAllowedMovement(piece, proposedX, proposedY, piece.mRects, gScreenWidth,
+                                      gScreenHeight);
+         if (!m.has_value())
+         {
+            piece.SetPosition(proposedX, proposedY);
+         }
+         else
+         {
+            auto [x, y] = m.value();
+            piece.SetPosition(x, y);
+            piece.SetActive(false);
+         }
       }
    }
 };
 
 TEST_CASE("Move_Piece")
 {
-   LinePiece l(gGreen);
+   LinePiece l(gGreen, 0);
    CHECK(l.X() == 0);
    CHECK(l.Y() == 0);
 
