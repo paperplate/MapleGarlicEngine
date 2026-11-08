@@ -13,24 +13,35 @@ export constexpr int gScreenFps{60};
 export TTF_Font* gFont = nullptr;
 
 export enum class LogType : int { INFO = 0, WARNING, ERROR };
-constexpr std::string LogStr[] = {"INFO", "WARNING", "ERROR"};
 
-export void log(LogType type, std::string_view message)
+export using KeyFunc = std::function<std::expected<bool, int>()>;
+export using KeyMap = std::unordered_map<SDL_Keycode, KeyFunc>;
+
+export std::expected<std::vector<std::byte>, std::string> ReadBinaryFile(std::string_view filepath)
+{
+   std::ifstream file(filepath.data(), std::ios::ate | std::ios::binary);
+   if (!file)
+   {
+      return std::unexpected(std::format("Failed to locate or open '{}'", filepath));
+   }
+
+   std::vector<std::byte> buffer(file.tellg());
+   file.seekg(0);
+   file.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
+   return buffer;
+}
+
+export void log(LogType level, std::string_view message,
+                const std::source_location loc = std::source_location::current())
 {
    // recommended to use SDL_Log instead of iostream,
    // some platforms like Android have issues with it
-   switch (type)
-   {
-   case LogType::ERROR:
-      std::println(stderr, "{}: {}", "ERROR", message);
-      break;
-   case LogType::WARNING:
-   case LogType::INFO:
-      std::println("{}: {}", "TEST", message);
-      break;
-   default:
-      std::unreachable();
-   }
+   std::string_view levelStr = (level == LogType::ERROR)     ? "ERROR"
+                               : (level == LogType::WARNING) ? "WARN"
+                                                             : "INFO";
+
+   std::println(stderr, "[{}] {}:{}:{} - {}", levelStr, loc.file_name(), loc.line(),
+                loc.function_name(), message);
 }
 
 export struct Color

@@ -42,6 +42,25 @@ export bool CheckCollision(const SDL_Rect& a, const SDL_Rect& b)
    return true;
 }
 
+TEST_CASE("CheckCollision_FlushContact")
+{
+   SDL_Rect rectA = {.x = 0, .y = 0, .w = 10, .h = 10};
+   SDL_Rect rectB = {.x = 10, .y = 0, .w = 10, .h = 10};
+
+   CHECK_FALSE(CheckCollision(rectA, rectB));
+
+   SDL_Rect rectC = {.x = 9, .y = 0, .w = 10, .h = 10};
+   CHECK(CheckCollision(rectA, rectC));
+}
+
+TEST_CASE("CheckCollision_Separation")
+{
+   SDL_Rect rectA = {.x = 0, .y = 0, .w = 10, .h = 10};
+   SDL_Rect rectB = {.x = 11, .y = 0, .w = 10, .h = 10};
+
+   CHECK_FALSE(CheckCollision(rectA, rectB));
+}
+
 export std::vector<SDL_Rect> MakePiece(int x, int y, int w, int h)
 {
    std::vector<SDL_Rect> out;
@@ -199,11 +218,21 @@ constexpr bool SpansOverlap(int aMin, int aMax, int bMin, int bMax)
    return aMax > bMin && aMin < bMax;
 }
 
+PieceBase& GetBase(Piece& piece)
+{
+   return std::visit([](auto& p) -> PieceBase& { return p; }, piece);
+}
+
+const PieceBase& GetBase(const Piece& piece)
+{
+   return std::visit([](auto& p) -> const PieceBase& { return p; }, piece);
+}
+
 /*
  * @return difference in x and y to valid move, or nullopt if no collision
  */
-std::optional<std::pair<int, int>> CalcAllowedMovement(const auto& piece, int dX, int dY,
-                                                       const std::vector<SDL_Rect>& obstacles,
+std::optional<std::pair<int, int>> CalcAllowedMovement(const PieceBase& piece, int dX, int dY,
+                                                       const std::vector<Piece>& obstacles,
                                                        int screenWidth, int screenHeight)
 {
    int allowedDx = dX;
@@ -216,29 +245,34 @@ std::optional<std::pair<int, int>> CalcAllowedMovement(const auto& piece, int dX
       int sqW = r.w;
       int sqH = r.h;
 
-      for (const auto& obs : obstacles)
+      for (const auto& obsPiece : obstacles)
       {
-         if (dX != 0.0f && SpansOverlap(sqY, sqY + sqH, obs.y, obs.y + obs.h))
-         {
-            if (dX > 0 && sqX < obs.x)
-            {
-               allowedDx = std::clamp(obs.x - (sqX + sqW), 0, allowedDx);
-            }
-            else if (dX < 0 && sqX > obs.x)
-            {
-               allowedDx = std::clamp((obs.x + obs.w) - sqX, allowedDx, 0);
-            }
-         }
+         const PieceBase& obsBase = GetBase(obsPiece);
 
-         if (dY != 0 && SpansOverlap(sqX, sqX + sqW, obs.x, obs.x + obs.w))
+         for (const auto& obs : obsBase.mRects)
          {
-            if (dY > 0 && sqY < obs.y)
+            if (dX != 0.0f && SpansOverlap(sqY, sqY + sqH, obs.y, obs.y + obs.h))
             {
-               allowedDy = std::clamp(obs.y - (sqY + sqH), 0, allowedDy);
+               if (dX > 0 && sqX < obs.x)
+               {
+                  allowedDx = std::clamp(obs.x - (sqX + sqW), 0, allowedDx);
+               }
+               else if (dX < 0 && sqX > obs.x)
+               {
+                  allowedDx = std::clamp((obs.x + obs.w) - sqX, allowedDx, 0);
+               }
             }
-            else if (dY < 0 && sqY > obs.y)
+
+            if (dY != 0 && SpansOverlap(sqX, sqX + sqW, obs.x, obs.x + obs.w))
             {
-               allowedDy = std::clamp((obs.y + obs.h) - sqY, allowedDy, 0);
+               if (dY > 0 && sqY < obs.y)
+               {
+                  allowedDy = std::clamp(obs.y - (sqY + sqH), 0, allowedDy);
+               }
+               else if (dY < 0 && sqY > obs.y)
+               {
+                  allowedDy = std::clamp((obs.y + obs.h) - sqY, allowedDy, 0);
+               }
             }
          }
       }
@@ -281,28 +315,48 @@ export struct MovePiece
    {
       if (piece.isActive())
       {
-         const int g = piece.GetGravity();
-         const int proposedX = piece.X() + X;
-         const int proposedY = piece.Y() + Y + g;
-         auto m = CalcAllowedMovement(piece, proposedX, proposedY, piece.mRects, gScreenWidth,
-                                      gScreenHeight);
+         const int deltaX = X;
+         const int deltaY = Y;
+         auto m = CalcAllowedMovement(piece, deltaX, deltaY, {}, gScreenWidth, gScreenHeight);
          if (!m.has_value())
          {
-            piece.SetPosition(proposedX, proposedY);
+            piece.SetPosition(piece.X() + deltaX, piece.Y() + deltaY);
          }
          else
          {
             auto [x, y] = m.value();
-            piece.SetPosition(x, y);
+            piece.SetPosition(piece.X() + x, piece.Y() + y);
             piece.SetActive(false);
          }
       }
    }
 };
 
-TEST_CASE("Move_Piece")
+TEST_CASE("Move_Piece_Line")
 {
-   LinePiece l(gGreen, 0);
+   LinePiece l(gGreen, 3);
+   CHECK(l.X() == 0);
+   CHECK(l.Y() == 0);
+
+   MovePiece{50, 50}(l);
+   CHECK(l.X() == 50);
+   CHECK(l.Y() == 50);
+}
+
+TEST_CASE("Move_Piece_TPiece")
+{
+   TPiece l(gGreen, 3);
+   CHECK(l.X() == 0);
+   CHECK(l.Y() == 0);
+
+   MovePiece{50, 50}(l);
+   CHECK(l.X() == 50);
+   CHECK(l.Y() == 50);
+}
+
+TEST_CASE("Move_Piece_Box")
+{
+   BoxPiece l(gGreen, 3);
    CHECK(l.X() == 0);
    CHECK(l.Y() == 0);
 
@@ -330,19 +384,21 @@ export struct RotatePiece
 
 export void UpdatePieces(std::vector<Piece>& pieces)
 {
-   const auto n = pieces.size();
-   std::vector<bool> collisions(n);
-   for (size_t i = 0; i < n; i++)
+   std::vector<SDL_Rect> rects;
+
+   PieceBase& p = GetBase(pieces.back());
+   auto m = CalcAllowedMovement(p, 0, p.GetGravity(), {pieces.begin(), pieces.end() - 1},
+                                gScreenWidth, gScreenHeight);
+   auto [x, y] = m.has_value() ? m.value() : std::make_pair(0, 3);
+   std::visit(MovePiece{x, y}, pieces.back());
+   if (m.has_value())
    {
-      /*for (size_t j = 1; j < n; j++)
-      {
-         collisions[i] = CheckPieceCollision(pieces[i], pieces[j]);
-      }
-      if (!collisions[i])
-      {
-         std::visit(MovePiece{0, 0}, pieces[i]);
-      }*/
-      std::visit(MovePiece{0, 0}, pieces[i]);
+      p.SetPosition(p.X() + m->first, p.Y() + m->second);
+      p.SetActive(false);
+   }
+   else
+   {
+      p.SetPosition(p.X(), p.Y());
    }
 }
 

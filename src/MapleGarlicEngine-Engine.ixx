@@ -5,6 +5,7 @@ module;
 #include <SDL3_ttf/SDL_ttf.h>
 // #include <glm/glm.hpp>
 #include <cassert>
+#include <cstdio>
 
 export module MapleGarlicEngine:Engine;
 import :AssetManager;
@@ -13,10 +14,17 @@ import Tetris;
 
 import std;
 
-// constexpr int gScreenWidth{640};
-// constexpr int gScreenHeight{480};
-// constexpr int gScreenFps{60};
-// TTF_Font* gFont = nullptr;
+void PrintSdlVersionInfo()
+{
+   const int compiled = SDL_VERSION;    /* hardcoded number from SDL headers */
+   const int linked = SDL_GetVersion(); /* reported by linked SDL library */
+
+   SDL_Log("We compiled against SDL version %d.%d.%d ...\n", SDL_VERSIONNUM_MAJOR(compiled),
+           SDL_VERSIONNUM_MINOR(compiled), SDL_VERSIONNUM_MICRO(compiled));
+
+   SDL_Log("But we are linking against SDL version %d.%d.%d.\n", SDL_VERSIONNUM_MAJOR(linked),
+           SDL_VERSIONNUM_MINOR(linked), SDL_VERSIONNUM_MICRO(linked));
+}
 
 export class Engine
 {
@@ -37,6 +45,7 @@ export class Engine
    SDL_Window* mWindow;
    SDL_Renderer* mRenderer;
    SDL_Surface* mSurface;
+   SDL_GPUDevice* mDevice;
    std::unique_ptr<DynamicText> mText;
 
    std::unique_ptr<Tetris> mGame;
@@ -50,12 +59,17 @@ export class Engine
  private:
    void Update();
    void Render();
+
+   KeyMap mKeyMap;
+
+   void AddKeyCommands();
 };
 
 Engine::Engine()
    : mWindow{nullptr}, mRenderer{nullptr}, mVSyncEnabled{true}, mFpsCapEnabled{false},
      mRenderTimeNS{0}
 {
+   PrintSdlVersionInfo();
 }
 
 Engine::~Engine()
@@ -74,19 +88,49 @@ Engine::~Engine()
    SDL_Quit();
 }
 
+void Engine::AddKeyCommands()
+{
+   mKeyMap.insert({SDLK_ESCAPE, []() { return false; }});
+   mKeyMap.insert({SDLK_P, [this]()
+                   {
+                      mVSyncEnabled = !mVSyncEnabled;
+                      SDL_SetRenderVSync(mRenderer,
+                                         (mVSyncEnabled) ? 1 : SDL_RENDERER_VSYNC_DISABLED);
+                      return true;
+                   }});
+
+   mKeyMap.insert({SDLK_O, [this]()
+                   {
+                      mFpsCapEnabled = !mFpsCapEnabled;
+                      return true;
+                   }});
+}
+
 bool Engine::Init()
 {
    if (!SDL_Init(SDL_INIT_VIDEO))
    {
       log(LogType::ERROR, std::string("SDL_Init Error: ").append(SDL_GetError()));
-      assert(0 && "SDL_Init(SDL_INIT_VIDEO) failed");
       return false;
    }
 
-   if (!SDL_CreateWindowAndRenderer("MapleGarlicEngine", gScreenWidth, gScreenHeight,
-                                    SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE, &mWindow, &mRenderer))
+   mWindow = SDL_CreateWindow("MapleGarlicEngine", gScreenWidth, gScreenHeight,
+                              SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE);
+   mRenderer = SDL_CreateRenderer(mWindow, "gpu");
+   if (!mWindow || !mRenderer)
    {
       log(LogType::ERROR, std::string("SDL_CreateWindow Error: ").append(SDL_GetError()));
+      return false;
+   }
+
+   SDL_PropertiesID rendererProps = SDL_GetRendererProperties(mRenderer);
+   mDevice = (SDL_GPUDevice*)(SDL_GetPointerProperty(
+      rendererProps, SDL_PROP_RENDERER_GPU_DEVICE_POINTER, nullptr));
+
+   if (!mDevice)
+   {
+      log(LogType::ERROR,
+          std::string("Failed to extract GPUDevice from renderer: {}").append(SDL_GetError()));
       return false;
    }
 
@@ -120,11 +164,13 @@ bool Engine::Init()
 
    SetupSceneData();
 
-   mGame = std::make_unique<Tetris>();
+   mGame = std::make_unique<Tetris>(mDevice, mWindow);
 
    SDL_ShowWindow(mWindow);
 
    mCapTimer.Start();
+
+   AddKeyCommands();
 
    return true;
 }
@@ -146,21 +192,10 @@ std::optional<bool> Engine::ProcessEvents(SDL_Event* event)
    }
    else if (event->type == SDL_EVENT_KEY_DOWN)
    {
-      // user has pressed a key
-      if (event->key.key == SDLK_ESCAPE)
+      auto itr = mKeyMap.find(event->key.key);
+      if (itr != mKeyMap.end())
       {
-         result = false;
-      }
-      else if (event->key.key == SDLK_P)
-      {
-         mVSyncEnabled = !mVSyncEnabled;
-         SDL_SetRenderVSync(mRenderer, (mVSyncEnabled) ? 1 : SDL_RENDERER_VSYNC_DISABLED);
-         result = true;
-      }
-      else if (event->key.key == SDLK_O)
-      {
-         mFpsCapEnabled = !mFpsCapEnabled;
-         result = true;
+         result = *itr->second();
       }
    }
 
