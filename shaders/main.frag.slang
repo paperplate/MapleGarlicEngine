@@ -136,7 +136,7 @@ struct KirbyAnim
       static const float2 Ear = float2(0.2, 0.3);
       static const float2 Foot = float2(0.15, 0.08);
       static const float2 Arm = float2(0.12, 0.08);
-      static const float2 Trunk = float2(0.06, 0.25);
+      static const float2 Trunk = float2(0.06, 0.15);
       static const float2 Eye = float2(0.03, 0.08);
       static const float2 None = float2(0.0, 0.0);
    };
@@ -222,7 +222,7 @@ struct KirbyAnim
          state.place(PartID::ArmR, float2(0.35, 0.05), rightArmSwing);
          state.place(PartID::FootL, float2(-0.15, 0.3), -0.1);
          state.place(PartID::FootR, float2(0.15, 0.3), 0.1);
-         state.place(PartID::Trunk, float2(0.0, 0.15), trunkSwing);
+         state.place(PartID::Trunk, float2(0.0, 0.05), trunkSwing);
          state.place(PartID::EyeL, float2(-0.08, -0.12), 0.0);
          state.place(PartID::EyeR, float2(0.08, -0.12), 0.0);
 
